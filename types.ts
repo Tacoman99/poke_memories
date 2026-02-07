@@ -1,8 +1,17 @@
 
+export type MediaType = 'image' | 'video';
+
+export interface MediaItem {
+    type: MediaType;
+    url: string;
+    thumbnail?: string;
+  }
+
 export interface Memory {
     id: string;
-    imageUrl: string;
+    media: MediaItem[];
     caption: string;
+    date?: string;
   }
 
   export type GameState = 'START' | 'PLAYING' | 'GAMEOVER' | 'MEMORIES';

@@ -7,9 +7,17 @@ interface GameViewProps {
   outfit: Outfit;
 }
 
-// Physics
-const GRAVITY = 0.28;
-const JUMP = -13;
+// Physics — tuned for tight, responsive platformer feel
+const GRAVITY_RISE = 0.32;         // Rising gravity (slightly lighter than base for a clean arc)
+const GRAVITY_FALL = 0.52;         // Falling gravity (heavier — snappy descent, clear weight)
+const GRAVITY_APEX = 0.14;         // Apex gravity (brief float at top of jump)
+const APEX_VEL_ZONE = 2.8;         // Velocity range where apex float blends in
+const JUMP_VELOCITY = -14.0;       // Initial jump impulse
+const JUMP_CUT = 0.48;            // One-shot velocity multiplier on early release
+const MAX_FALL_SPEED = 16;         // Terminal velocity cap
+const COYOTE_MS = 80;             // Grace period after leaving ground/rail (ms)
+const JUMP_BUFFER_MS = 100;        // Pre-land jump buffer window (ms)
+const SQUASH_LERP = 0.2;          // Squash/stretch recovery speed (higher = snappier)
 const BASE_SPAWN_RATE = 900;
 const RAIL_SPAWN_CHANCE = 0.45;
 
@@ -31,6 +39,8 @@ interface GameItem {
   size: number;
   length?: number;
   slope?: number;
+  phase?: number;        // Random offset for bobbing animation
+  baseY?: number;        // Original Y for bobbing reference
 }
 
 interface Particle {
@@ -84,6 +94,15 @@ const GameView: React.FC<GameViewProps> = ({ onEnd, outfit }) => {
 
   // Track if ended to prevent double calls
   const hasEnded = useRef(false);
+
+  // Smooth physics refs
+  const lastFrameTime = useRef(0);
+  const jumpHeld = useRef(false);
+  const coyoteTimer = useRef(0);        // ms remaining for coyote time
+  const jumpBufferTimer = useRef(0);     // ms remaining in jump buffer
+  const wasGrounded = useRef(true);      // Was on ground/rail last frame
+  const squash = useRef({ scaleX: 1, scaleY: 1 });
+  const screenShake = useRef({ x: 0, y: 0, intensity: 0 });
 
   useEffect(() => {
     const handleResize = () => setDimensions({ width: window.innerWidth, height: window.innerHeight });
@@ -151,16 +170,90 @@ const GameView: React.FC<GameViewProps> = ({ onEnd, outfit }) => {
       }
       if (isGrinding.current) companionReaction.current = 'grind';
 
-      // Physics
+      // --- DELTA TIME ---
+      const dt = lastFrameTime.current === 0 ? 1 : Math.min((time - lastFrameTime.current) / 16.667, 3);
+      lastFrameTime.current = time;
+
+      // --- COYOTE & JUMP BUFFER TIMERS ---
+      const isOnGround = playerY.current >= groundY - playerHeight - 1;
+      const grounded = isOnGround || isGrinding.current;
+
+      if (grounded) {
+        coyoteTimer.current = COYOTE_MS;
+      } else {
+        coyoteTimer.current = Math.max(0, coyoteTimer.current - 16 * dt);
+      }
+      if (jumpBufferTimer.current > 0) {
+        jumpBufferTimer.current = Math.max(0, jumpBufferTimer.current - 16 * dt);
+      }
+
+      // Execute buffered jump if we just landed and buffer is active
+      if (grounded && jumpBufferTimer.current > 0 && !wasGrounded.current) {
+        jumpBufferTimer.current = 0;
+        coyoteTimer.current = 0;
+        isGrinding.current = false;
+        playerVelocity.current = JUMP_VELOCITY;
+        squash.current = { scaleX: 0.82, scaleY: 1.25 };
+        for (let i = 0; i < 5; i++) particles.current.push({
+          x: playerX + 20, y: playerY.current + 95,
+          vx: (Math.random() - 0.5) * 7, vy: 2 + Math.random() * 2,
+          life: 0.8, type: 'sparkle'
+        });
+      }
+
+      // Landing detection — trigger squash on landing
+      if (grounded && !wasGrounded.current) {
+        squash.current = { scaleX: 1.2, scaleY: 0.75 };
+      }
+      wasGrounded.current = grounded;
+
+      // --- ASYMMETRIC GRAVITY (smoothly interpolated through apex) ---
       if (!isGrinding.current) {
-        playerVelocity.current += GRAVITY;
-        playerY.current += playerVelocity.current;
+        const vel = playerVelocity.current;
+        const absVel = Math.abs(vel);
+        let gravity: number;
+
+        if (absVel < APEX_VEL_ZONE) {
+          // Inside apex zone — smoothly blend between rise/fall and apex gravity
+          // t goes from 0 (at exact apex) to 1 (at zone edge)
+          const t = absVel / APEX_VEL_ZONE;
+          // Ease-in (t²) so the float is most noticeable right at the peak
+          const edgeGravity = vel <= 0 ? GRAVITY_RISE : GRAVITY_FALL;
+          gravity = GRAVITY_APEX + (edgeGravity - GRAVITY_APEX) * (t * t);
+        } else if (vel < 0) {
+          gravity = GRAVITY_RISE;
+        } else {
+          gravity = GRAVITY_FALL;
+        }
+
+        playerVelocity.current += gravity * dt;
+
+        // Terminal velocity
+        if (playerVelocity.current > MAX_FALL_SPEED) {
+          playerVelocity.current = MAX_FALL_SPEED;
+        }
+
+        playerY.current += playerVelocity.current * dt;
       }
 
       // Ground Boundary
       if (playerY.current > groundY - playerHeight) {
         playerY.current = groundY - playerHeight;
         playerVelocity.current = 0;
+      }
+
+      // --- SQUASH/STRETCH DECAY ---
+      squash.current.scaleX += (1 - squash.current.scaleX) * SQUASH_LERP * dt;
+      squash.current.scaleY += (1 - squash.current.scaleY) * SQUASH_LERP * dt;
+
+      // --- SCREEN SHAKE DECAY ---
+      if (screenShake.current.intensity > 0) {
+        screenShake.current.x = (Math.random() - 0.5) * screenShake.current.intensity;
+        screenShake.current.y = (Math.random() - 0.5) * screenShake.current.intensity;
+        screenShake.current.intensity *= Math.pow(0.88, dt);
+        if (screenShake.current.intensity < 0.3) {
+          screenShake.current = { x: 0, y: 0, intensity: 0 };
+        }
       }
 
       // --- SPAWNING ---
@@ -199,22 +292,27 @@ const GameView: React.FC<GameViewProps> = ({ onEnd, outfit }) => {
 
           const ballY = groundY - 30 - Math.random() * 200;
           const obstacleH = 40 + Math.random() * 25;
+          const yPos = itemType === 'obstacle' ? groundY - obstacleH : ballY;
           items.current.push({
             x: width + 100,
-            y: itemType === 'obstacle' ? groundY - obstacleH : ballY,
+            y: yPos,
             type: itemType,
             speed,
-            size: itemType === 'obstacle' ? obstacleH : 40
+            size: itemType === 'obstacle' ? obstacleH : 40,
+            phase: Math.random() * Math.PI * 2,
+            baseY: yPos
           });
         }
         lastSpawn.current = time;
       }
 
-      // --- PARTICLES UPDATE ---
+      // --- PARTICLES UPDATE (with gravity on sparkles) ---
       particles.current = particles.current.filter(p => {
-        p.x += p.vx;
-        p.y += p.vy;
-        p.life -= 0.02;
+        p.x += p.vx * dt;
+        p.y += p.vy * dt;
+        if (p.type === 'sparkle') p.vy += 0.08 * dt; // Subtle gravity on sparkles
+        p.vx *= Math.pow(0.98, dt); // Air resistance
+        p.life -= 0.02 * dt;
         return p.life > 0;
       });
 
@@ -250,16 +348,19 @@ const GameView: React.FC<GameViewProps> = ({ onEnd, outfit }) => {
         companionReactionTimer.current = 500;
       };
 
-      // --- MAGNET EFFECT ---
+      // --- MAGNET EFFECT (eased pull — stronger when closer) ---
       if (magnetTimer.current > 0) {
         items.current.forEach(item => {
           if (item.type === 'ball' || item.type === 'greatball' || item.type === 'ultraball' || item.type === 'masterball') {
             const dx = (playerX + 20) - (item.x + 20);
             const dy = (playerY.current + 50) - (item.y + 20);
             const dist = Math.sqrt(dx * dx + dy * dy);
-            if (dist < 200 && dist > 10) {
-              item.x += dx / dist * 4;
-              item.y += dy / dist * 4;
+            if (dist < 220 && dist > 8) {
+              // Quadratic easing: pull strength increases as item gets closer
+              const t = 1 - dist / 220;
+              const pullStrength = (2 + t * t * 8) * dt;
+              item.x += dx / dist * pullStrength;
+              item.y += dy / dist * pullStrength;
             }
           }
         });
@@ -292,33 +393,53 @@ const GameView: React.FC<GameViewProps> = ({ onEnd, outfit }) => {
             setScore(Math.floor(scoreRef.current));
           }
         } else if (item.type === 'ball' || item.type === 'greatball' || item.type === 'ultraball' || item.type === 'masterball') {
+          // Apply bobbing to ball Y position
+          if (item.phase !== undefined && item.baseY !== undefined) {
+            item.y = item.baseY + Math.sin(time * 0.004 + item.phase) * 6;
+          }
+
           const dx = (playerX + 20) - (item.x + 20);
           const dy = (playerY.current + 50) - (item.y + 20);
           const dist = Math.sqrt(dx * dx + dy * dy);
-          if (dist < 40) {
+
+          // Slightly generous hitbox (44 instead of 40) — feels more responsive
+          if (dist < 44) {
             triggerCombo();
             // Score based on type
             if (item.type === 'ball') {
               addScore(1);
+              screenShake.current.intensity = Math.max(screenShake.current.intensity, 2);
             } else if (item.type === 'greatball') {
               addScore(2);
               doubleScoreTimer.current = 5000;
+              screenShake.current.intensity = Math.max(screenShake.current.intensity, 3.5);
             } else if (item.type === 'ultraball') {
               addScore(3);
               magnetTimer.current = 5000;
+              screenShake.current.intensity = Math.max(screenShake.current.intensity, 4);
             } else if (item.type === 'masterball') {
               addScore(5);
               shieldActive.current = true;
+              screenShake.current.intensity = Math.max(screenShake.current.intensity, 6);
             }
-            // Particles
-            const particleColors: Record<string, string> = {
-              ball: 'sparkle', greatball: 'sparkle', ultraball: 'sparkle', masterball: 'heart'
-            };
-            for (let k = 0; k < 8; k++) particles.current.push({
-              x: item.x + 20, y: item.y + 20,
-              vx: (Math.random() - 0.5) * 8, vy: (Math.random() - 0.5) * 8,
-              life: 1, type: particleColors[item.type] as 'sparkle' | 'heart'
-            });
+
+            // Radial particle burst — more particles, directional spread
+            const particleType = item.type === 'masterball' ? 'heart' : 'sparkle';
+            const burstCount = item.type === 'masterball' ? 14 : item.type === 'ball' ? 8 : 11;
+            for (let k = 0; k < burstCount; k++) {
+              const angle = (k / burstCount) * Math.PI * 2 + Math.random() * 0.4;
+              const spd = 3 + Math.random() * 5;
+              particles.current.push({
+                x: item.x + 20, y: item.y + 20,
+                vx: Math.cos(angle) * spd,
+                vy: Math.sin(angle) * spd - 2,
+                life: 0.7 + Math.random() * 0.4,
+                type: particleType as 'sparkle' | 'heart'
+              });
+            }
+
+            // Brief squash on collect for feedback
+            squash.current = { scaleX: 1.08, scaleY: 0.92 };
             return false;
           }
         } else if (item.type === 'obstacle' && !isGrinding.current) {
@@ -328,16 +449,24 @@ const GameView: React.FC<GameViewProps> = ({ onEnd, outfit }) => {
           if (overlapX && overlapY) {
             if (shieldActive.current) {
               shieldActive.current = false;
-              // Shield absorb effect
-              for (let k = 0; k < 12; k++) particles.current.push({
-                x: playerX + 20, y: playerY.current + 50,
-                vx: (Math.random() - 0.5) * 10, vy: (Math.random() - 0.5) * 10,
-                life: 1, type: 'heart'
-              });
+              screenShake.current.intensity = 8;
+              // Shield absorb — big radial burst
+              for (let k = 0; k < 16; k++) {
+                const angle = (k / 16) * Math.PI * 2;
+                const spd = 4 + Math.random() * 6;
+                particles.current.push({
+                  x: playerX + 20, y: playerY.current + 50,
+                  vx: Math.cos(angle) * spd,
+                  vy: Math.sin(angle) * spd,
+                  life: 1, type: 'heart'
+                });
+              }
               companionReaction.current = 'happy';
               companionReactionTimer.current = 800;
               return false;
             }
+            // Death hit — strong shake
+            screenShake.current.intensity = 12;
             if (!hasEnded.current) {
               hasEnded.current = true;
               onEnd(Math.floor(scoreRef.current));
@@ -367,6 +496,12 @@ const GameView: React.FC<GameViewProps> = ({ onEnd, outfit }) => {
       //  RENDER
       // ========================
       ctx.clearRect(0, 0, width, height);
+
+      // --- SCREEN SHAKE OFFSET ---
+      ctx.save();
+      if (screenShake.current.intensity > 0) {
+        ctx.translate(screenShake.current.x, screenShake.current.y);
+      }
 
       // --- PARALLAX BACKGROUND ---
       // Sky gradient
@@ -459,14 +594,38 @@ const GameView: React.FC<GameViewProps> = ({ onEnd, outfit }) => {
           ctx.shadowBlur = 0;
           ctx.strokeStyle = '#fff'; ctx.lineWidth = 3;
           ctx.beginPath(); ctx.moveTo(item.x, item.y - 4); ctx.lineTo(endX, endY - 4); ctx.stroke();
-        } else if (item.type === 'ball') {
-          drawPokeball(ctx, item.x + 20, item.y + 20, 18);
-        } else if (item.type === 'greatball') {
-          drawGreatBall(ctx, item.x + 20, item.y + 20, 18);
-        } else if (item.type === 'ultraball') {
-          drawUltraBall(ctx, item.x + 20, item.y + 20, 18);
-        } else if (item.type === 'masterball') {
-          drawMasterBall(ctx, item.x + 20, item.y + 20, 18);
+        } else if (item.type === 'ball' || item.type === 'greatball' || item.type === 'ultraball' || item.type === 'masterball') {
+          const bx = item.x + 20;
+          const by = item.y + 20;
+          // Subtle scale pulse
+          const pulse = 1 + Math.sin(time * 0.006 + (item.phase || 0)) * 0.06;
+          // Proximity glow — glows brighter as player approaches
+          const pdx = (playerX + 20) - bx;
+          const pdy = (playerY.current + 50) - by;
+          const pDist = Math.sqrt(pdx * pdx + pdy * pdy);
+          if (pDist < 100) {
+            const glowAlpha = (1 - pDist / 100) * 0.35;
+            const glowColor = item.type === 'masterball' ? '#c084fc'
+                            : item.type === 'ultraball' ? '#facc15'
+                            : item.type === 'greatball' ? '#3b82f6'
+                            : '#f43f5e';
+            ctx.save();
+            ctx.globalAlpha = glowAlpha;
+            ctx.fillStyle = glowColor;
+            ctx.beginPath();
+            ctx.arc(bx, by, 28 + (1 - pDist / 100) * 10, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.restore();
+          }
+          ctx.save();
+          ctx.translate(bx, by);
+          ctx.scale(pulse, pulse);
+          ctx.translate(-bx, -by);
+          if (item.type === 'ball') drawPokeball(ctx, bx, by, 18);
+          else if (item.type === 'greatball') drawGreatBall(ctx, bx, by, 18);
+          else if (item.type === 'ultraball') drawUltraBall(ctx, bx, by, 18);
+          else drawMasterBall(ctx, bx, by, 18);
+          ctx.restore();
         } else if (item.type === 'obstacle') {
           const cx = item.x + 15;
           const bottom = item.y + item.size;
@@ -506,6 +665,8 @@ const GameView: React.FC<GameViewProps> = ({ onEnd, outfit }) => {
 
       ctx.save();
       ctx.translate(px + 20, py + 50);
+      // Squash/stretch — applied at character center pivot
+      ctx.scale(squash.current.scaleX, squash.current.scaleY);
       if (isGrinding.current) {
         ctx.rotate(Math.atan2(grindSlope.current, 375) * 0.6);
       }
@@ -690,27 +851,76 @@ const GameView: React.FC<GameViewProps> = ({ onEnd, outfit }) => {
         ctx.restore();
       }
 
+      // --- END SCREEN SHAKE ---
+      ctx.restore();
+
       frameId.current = requestAnimationFrame(gameLoop);
     };
 
     frameId.current = requestAnimationFrame(gameLoop);
-    return () => cancelAnimationFrame(frameId.current);
+    return () => {
+      cancelAnimationFrame(frameId.current);
+      lastFrameTime.current = 0; // Reset for next game session
+    };
   }, [dimensions, onEnd, outfit]);
 
-  const handleJump = () => {
-    const groundY = dimensions.height - 100;
-    const onGround = playerY.current >= groundY - 101;
-    if (!onGround && !isGrinding.current) return;
+  const executeJump = () => {
+    coyoteTimer.current = 0;
+    jumpBufferTimer.current = 0;
     isGrinding.current = false;
-    playerVelocity.current = JUMP;
-    for (let i = 0; i < 4; i++) particles.current.push({
-      x: dimensions.width * 0.15 + 20, y: playerY.current + 90,
-      vx: (Math.random() - 0.5) * 6, vy: 3, life: 0.7, type: 'sparkle'
+    playerVelocity.current = JUMP_VELOCITY;
+    squash.current = { scaleX: 0.82, scaleY: 1.25 };
+    for (let i = 0; i < 6; i++) particles.current.push({
+      x: dimensions.width * 0.15 + 10 + Math.random() * 20,
+      y: playerY.current + 92,
+      vx: (Math.random() - 0.5) * 7,
+      vy: 1.5 + Math.random() * 3,
+      life: 0.6 + Math.random() * 0.3,
+      type: 'sparkle'
     });
   };
 
+  // Native DOM listeners — bypass React synthetic event batching for zero-lag input
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+
+    const onPress = (e: Event) => {
+      e.preventDefault();
+      jumpHeld.current = true;
+      const groundY = dimensions.height - 100;
+      const onGround = playerY.current >= groundY - 101;
+      const canJump = onGround || isGrinding.current || coyoteTimer.current > 0;
+      if (canJump) {
+        executeJump();
+      } else {
+        jumpBufferTimer.current = JUMP_BUFFER_MS;
+      }
+    };
+
+    const onRelease = () => {
+      jumpHeld.current = false;
+      if (playerVelocity.current < -0.5) {
+        playerVelocity.current *= JUMP_CUT;
+      }
+    };
+
+    // { passive: false } lets us preventDefault to kill any touch delay
+    canvas.addEventListener('mousedown', onPress, { passive: false });
+    canvas.addEventListener('touchstart', onPress, { passive: false });
+    canvas.addEventListener('mouseup', onRelease);
+    canvas.addEventListener('touchend', onRelease);
+
+    return () => {
+      canvas.removeEventListener('mousedown', onPress);
+      canvas.removeEventListener('touchstart', onPress);
+      canvas.removeEventListener('mouseup', onRelease);
+      canvas.removeEventListener('touchend', onRelease);
+    };
+  }, [dimensions]);
+
   return (
-    <div className="fixed inset-0 touch-none overflow-hidden" onMouseDown={handleJump} onTouchStart={handleJump}>
+    <div className="fixed inset-0 touch-none overflow-hidden">
       <canvas ref={canvasRef} width={dimensions.width} height={dimensions.height} className="block cursor-none" />
       <div className="absolute top-8 right-8 flex flex-col items-end gap-3 pointer-events-none">
         <div className="bg-white/80 backdrop-blur-md px-6 py-3 rounded-2xl border-2 border-pink-200 shadow-xl animate-bounce">

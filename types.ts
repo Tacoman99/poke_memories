@@ -16,6 +16,16 @@ export interface Memory {
 
   export type GameState = 'START' | 'PLAYING' | 'GAMEOVER' | 'MEMORIES';
 
+  export type GameMode = 'COURSE' | 'ENDLESS' | 'BOWL';
+
+  export interface GameResult {
+    mode: GameMode;
+    collected: number;
+    trickScore: number;
+    distance: number;
+    completed: boolean;
+  }
+
   export type ItemType = 'ball' | 'obstacle' | 'rail' | 'greatball' | 'ultraball' | 'masterball';
 
   export interface GameObject {
@@ -45,4 +55,7 @@ export interface Memory {
     unlockedMemoryIds: string[];
     unlockedOutfits: string[];
     selectedOutfit: string;
+    courseCompleted: boolean;
+    bowlBest: number;
+    bowlTier: number;
   }

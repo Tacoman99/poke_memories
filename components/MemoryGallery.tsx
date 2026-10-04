@@ -572,6 +572,7 @@ const MemoryGallery: React.FC<MemoryGalleryProps> = ({ unlockedIds, onBack }) =>
         <div className="flex items-center justify-between mb-10">
           <button
             onClick={onBack}
+            aria-label="Back to menu"
             className="p-3 bg-white rounded-full text-rose-500 shadow-md hover:bg-rose-50 hover:shadow-lg transition-all"
           >
             <ArrowLeft size={22} />

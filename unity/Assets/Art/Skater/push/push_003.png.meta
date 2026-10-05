@@ -1,5 +1,5 @@
 fileFormatVersion: 2
-guid: b5f12625c099fd34b876fa4525d60b51
+guid: 52fd2b45bcde6264696b63956e07bbed
 TextureImporter:
   internalIDToNameTable:
   - first:
@@ -144,10 +144,10 @@ TextureImporter:
       name: push_003_0
       rect:
         serializedVersion: 2
-        x: 157
+        x: 160
         y: 10
         width: 174
-        height: 402
+        height: 401
       alignment: 0
       pivot: {x: 0, y: 0}
       border: {x: 0, y: 0, z: 0, w: 0}
@@ -175,8 +175,7 @@ TextureImporter:
     secondaryTextures: []
     spriteCustomMetadata:
       entries: []
-    nameFileIdTable:
-      push_003_0: -7524357356090973749
+    nameFileIdTable: {}
   mipmapLimitGroupName: 
   pSDRemoveMatte: 0
   userData: 

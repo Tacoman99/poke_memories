@@ -36,10 +36,19 @@ namespace PokeMemories.Gameplay
         bool jumpRequested;
         bool started;
         float endedAt;
+        int seenBails;
+        float bailUntil, landUntil;
+        const float BailClipSeconds = 10f / 12f, LandClipSeconds = 6f / 12f;
 
         Rect[] trickButtons = new Rect[3];
         Rect autoButton;
         int autoTrick;
+        static readonly Dictionary<TrickKind, string> TrickClips = new()
+        {
+            { TrickKind.Grab, "grab" },
+            { TrickKind.Kick, "kick" },
+            { TrickKind.Spin, "spin" },
+        };
         static readonly (TrickKind kind, string label, Key key)[] TrickInputs =
         {
             (TrickKind.Grab, "Grab (J)", Key.J),
@@ -76,6 +85,9 @@ namespace PokeMemories.Gameplay
             sim = new CourseSimulation(mode);
             sim.TookOff += () => jumpRequested = true;
             animState = null;
+            seenBails = 0;
+            bailUntil = 0;
+            landUntil = 0;
             started = false;
             skater.transform.rotation = Quaternion.identity;
             skater.transform.localScale = Vector3.one;
@@ -222,33 +234,57 @@ namespace PokeMemories.Gameplay
             // The ground block is 6 units tall with a centred pivot; its top edge sits on groundY.
             ground.position = new Vector3(view.transform.position.x, groundY - 3f, 0);
 
-            if (jumpRequested)
+            if (sim.Bails > seenBails)
+            {
+                seenBails = sim.Bails;
+                bailUntil = Time.time + BailClipSeconds;
+                jumpRequested = false;
+                SetAnim("bail", 1, true);
+            }
+
+            if (Time.time < bailUntil) { }
+            else if (!sim.Grounded && sim.Trick is { } trick)
+            {
+                // Trick clips are scrubbed by the simulation's trick progress, so they finish
+                // exactly when the trick does. The simulation is never told what is playing.
+                var clip = TrickClips[trick];
+                if (animState != clip) { animState = clip; skater.speed = 0; }
+                skater.Play(clip, 0, Mathf.Min(0.999f, sim.TrickProgress));
+            }
+            else if (jumpRequested)
             {
                 jumpRequested = false;
                 skater.speed = 1.4f;
                 skater.Play("jump", 0, JumpTakeoffFrame / JumpClipFrames);
                 animState = "jump";
             }
+            else if (!sim.Grounded)
+            {
+                // Trick finished before touchdown: go back to the airborne tuck.
+                if (animState is "grab" or "kick" or "spin")
+                {
+                    skater.speed = 1;
+                    skater.Play("jump", 0, 0.75f);
+                    animState = "jump";
+                }
+            }
             else if (sim.Rail != null) SetAnim("grind", 1);
-            else if (sim.Grounded) SetAnim(!started || (sim.Ended && !sim.Completed) ? "idle" : "push", sim.Speed / CourseSimulation.BaseSpeed);
-
-            // Tricks: placeholder motion until there is trick artwork.
-            var t = sim.TrickProgress;
-            var spin = sim.Trick == TrickKind.Spin ? -360f * t : 0;
-            var tilt = sim.Trick == TrickKind.Kick ? Mathf.Sin(t * Mathf.PI) * 25f : 0;
-            skater.transform.rotation = Quaternion.Euler(0, sim.Trick == TrickKind.Spin ? spin : 0, tilt);
-            var squash = sim.Trick == TrickKind.Grab ? 1 - Mathf.Sin(t * Mathf.PI) * 0.2f : 1 - sim.LandingPulse * 0.06f;
-            skater.transform.localScale = new Vector3(1, squash, 1);
+            else
+            {
+                if (animState is "jump" or "grab" or "kick" or "spin") { SetAnim("land", 2.5f); landUntil = Time.time + LandClipSeconds / 2.5f; }
+                else if (Time.time >= landUntil)
+                    SetAnim(!started || (sim.Ended && !sim.Completed) ? "idle" : "push", sim.Speed / CourseSimulation.BaseSpeed);
+            }
 
             // Blink while protected after a hit.
             skaterSprite.color = sim.Invulnerable > 0 && (int)(sim.Invulnerable * 10) % 2 == 0
                 ? new Color(1, 1, 1, 0.35f) : Color.white;
         }
 
-        void SetAnim(string state, float speed)
+        void SetAnim(string state, float speed, bool restart = false)
         {
             skater.speed = speed;
-            if (animState == state) return;
+            if (animState == state && !restart) return;
             animState = state;
             skater.Play(state, 0, 0);
         }

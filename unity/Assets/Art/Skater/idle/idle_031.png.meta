@@ -1,5 +1,5 @@
 fileFormatVersion: 2
-guid: c8b6da83dffab6e459b6e427d1939c1e
+guid: 5b412750ae2717040a375a9bdc230a0c
 TextureImporter:
   internalIDToNameTable:
   - first:
@@ -175,8 +175,7 @@ TextureImporter:
     secondaryTextures: []
     spriteCustomMetadata:
       entries: []
-    nameFileIdTable:
-      idle_031_0: -7861757428098083232
+    nameFileIdTable: {}
   mipmapLimitGroupName: 
   pSDRemoveMatte: 0
   userData: 

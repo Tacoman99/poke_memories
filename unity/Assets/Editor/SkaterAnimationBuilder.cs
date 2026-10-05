@@ -23,6 +23,11 @@ namespace PokeMemories.Editor
             ("push", true),
             ("jump", false),
             ("grind", true),
+            ("grab", false),
+            ("kick", false),
+            ("spin", false),
+            ("land", false),
+            ("bail", false),
         };
 
         [MenuItem("PokeMemories/Build Skater Animations")]

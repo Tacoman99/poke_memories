@@ -33,6 +33,17 @@ namespace PokeMemories.Gameplay
         public const float JumpSpeed = 650;
         public const float MinJumpSpeed = 580;
         public const float KickSpeed = 860;
+        // ---- Momentum / feel rules (Unity-only; mirror in gameplay.ts later, see FEEL-CHANGES.md) ----
+        public const float MinPace = 0.82f, MaxPace = 1.28f;
+        const float PumpPeriod = 0.6f;       // seconds of rolling per push stroke
+        const float PumpGain = 0.2f;         // pace/sec added at the peak of a push stroke
+        const float CruiseDrag = 0.9f;       // per second, pulls pace back towards 1
+        const float GrindCarve = 0.22f;      // pace/sec gained while grinding a rail
+        const float FallGravity = 1.25f;     // heavier on the way down
+        const float HangGravity = 0.8f;      // lighter near the apex
+        const float HangBand = 150;
+        const float TerminalSpeed = 950;
+        const float RailMagnet = 10;         // late-snap forgiveness: foot may be this far past a rail top
         const float Coyote = 0.1f;
         const float Buffer = 0.14f;
         const float ComboWindow = 0.6f;
@@ -59,6 +70,16 @@ namespace PokeMemories.Gameplay
         public int Landings;
         public int Bails; // animation-only counter: +1 each time a trick is bailed on touchdown
         public float LandingPulse, AirBlend, GrindBlend, RollTime, AirTime, GrindTime;
+        /// <summary>Forward momentum multiplier, MinPace..MaxPace. Speed = baseline * Pace.</summary>
+        public float Pace = 1f;
+        /// <summary>0..1 landing compression (view squashes the sprite); decays on its own.</summary>
+        public float Crouch;
+        /// <summary>1 right after a clean-landing speed boost, decays to 0 (view draws a trail burst).</summary>
+        public float BoostPulse;
+        /// <summary>Pixels the foot was past the rail top at snap time; decays, view eases the sprite up.</summary>
+        public float SnapOffset;
+        /// <summary>0..1 push-stroke phase while rolling (animation only reads it).</summary>
+        public float PumpPhase;
         public TrickKind? Trick;
         public float TrickTime, PendingScore;
         public int PendingTricks, Combo, TricksLanded, BestCombo;
@@ -69,7 +90,8 @@ namespace PokeMemories.Gameplay
 
         public CourseSimulation(PlayMode mode) => Mode = mode;
 
-        public float Speed => Mode == PlayMode.Course ? BaseSpeed : Math.Min(MaxSpeed, BaseSpeed + Distance / 180);
+        public float Baseline => Mode == PlayMode.Course ? BaseSpeed : Math.Min(MaxSpeed, BaseSpeed + Distance / 180);
+        public float Speed => Baseline * Pace;
 
         public float TrickProgress => Trick is { } t ? Math.Min(1, TrickTime / Tricks[t].duration) : 0;
 
@@ -182,14 +204,33 @@ namespace PokeMemories.Gameplay
         void Hurt(string text)
         {
             Hearts--;
+            Pace = Math.Max(MinPace, Pace - 0.2f); // stumble
             Invulnerable = 1.8f;
             SetFeedback(Hearts > 0 ? text : "Out of hearts", 1.8f);
             if (Hearts == 0) Ended = true;
         }
 
+        // Touchdown momentum: hard falls cost speed and crouch her, clean tricked/rail landings
+        // give it back. `impact` is the downward speed at contact.
+        void Touchdown(float impact, bool clean, bool onRail)
+        {
+            var weight = Math.Max(0, Math.Min(1, (impact - 300) / 550));
+            Crouch = Math.Max(Crouch, 0.25f + 0.75f * weight);
+            if (!clean) return; // a bail already costs a heart (Hurt lowers pace)
+            var boost = -0.14f * weight;
+            if (TricksJustBanked > 0) boost += 0.07f + 0.015f * Math.Min(5, Combo);
+            else if (onRail) boost += 0.05f;
+            else boost += 0.03f * (1 - weight);
+            Pace = Math.Max(MinPace, Math.Min(MaxPace, Pace + boost));
+            if (boost > 0.02f) BoostPulse = 1;
+        }
+
+        int TricksJustBanked;
+
         // Returns false when the skater bailed a trick on touchdown.
         bool Land()
         {
+            TricksJustBanked = 0;
             if (Trick != null)
             {
                 Bails++;
@@ -211,6 +252,7 @@ namespace PokeMemories.Gameplay
                 TricksLanded += PendingTricks;
                 BestCombo = Math.Max(BestCombo, Combo);
                 SetFeedback($"Landed! +{Math.Round(banked)} · combo x{Math.Min(5, Combo)} ✨", 1.4f);
+                TricksJustBanked = PendingTricks;
                 PendingScore = 0;
                 PendingTricks = 0;
             }
@@ -278,7 +320,9 @@ namespace PokeMemories.Gameplay
             {
                 Rail = null;
                 Grounded = false;
-                Velocity = Math.Min(850, Velocity + Gravity * dt);
+                // Light at the apex, heavy on the way down: more hang time, snappier landings.
+                var weightFactor = Velocity > 0 ? FallGravity : Math.Abs(Velocity) < HangBand ? HangGravity : 1f;
+                Velocity = Math.Min(TerminalSpeed, Velocity + Gravity * weightFactor * dt);
                 Foot += Velocity * dt;
                 if (Velocity >= 0)
                 {
@@ -291,7 +335,7 @@ namespace PokeMemories.Gameplay
                         if (!rail.Grindable) continue;
                         var before = oldFoot - RailHeight(rail, oldX);
                         var after = Foot - RailHeight(rail, Distance);
-                        if (before > 0.001f || after < 0 || after <= before) continue;
+                        if (before > RailMagnet || after < 0 || after <= before) continue;
                         var fraction = Math.Max(0, Math.Min(1, -before / (after - before)));
                         var crossingX = oldX + (Distance - oldX) * fraction;
                         if (!Overlaps(crossingX, rail)) continue;
@@ -304,6 +348,8 @@ namespace PokeMemories.Gameplay
                     }
                     if (landingRail != null && Overlaps(Distance, landingRail))
                     {
+                        var impact = Velocity;
+                        SnapOffset = Math.Max(0, Foot - landingHeight); // positive = foot was below the top
                         Foot = landingHeight;
                         Velocity = 0;
                         Rail = landingRail.Id;
@@ -312,7 +358,9 @@ namespace PokeMemories.Gameplay
                         Landings++;
                         LandingPulse = 1;
                         var hadTricks = PendingTricks > 0;
-                        if (Land() && !hadTricks) SetFeedback(landingRail.Kind == ItemKind.Stairs ? "Handrail grind! ✨" : "Clean landing! ✨");
+                        var clean = Land();
+                        Touchdown(impact, clean, true);
+                        if (clean && !hadTricks) SetFeedback(landingRail.Kind == ItemKind.Stairs ? "Handrail grind! ✨" : "Clean landing! ✨");
                     }
                 }
                 var gap = Foot >= 0 && Invulnerable == 0 ? OverGap() : null;
@@ -330,11 +378,12 @@ namespace PokeMemories.Gameplay
                 }
                 else if (Foot >= 0)
                 {
+                    var impact = Velocity;
                     if (!wasGrounded && Velocity > 200) LandingPulse = 1;
                     Foot = 0;
                     Velocity = 0;
                     Grounded = true;
-                    if (!wasGrounded) Land();
+                    if (!wasGrounded) Touchdown(impact, Land(), false);
                 }
             }
             if (Grounded && Rail == null && !Ended)
@@ -370,6 +419,21 @@ namespace PokeMemories.Gameplay
             AirBlend += ((Grounded ? 0 : 1) - AirBlend) * blend;
             GrindBlend += ((Rail != null ? 1 : 0) - GrindBlend) * blend;
             if (Grounded && Rail == null) RollTime += dt * Speed / BaseSpeed;
+
+            // Momentum: push strokes surge her forward, drag pulls back to cruise, grinding carves
+            // speed up. Pace changes only the forward speed, never heights or timers.
+            Crouch = Math.Max(0, Crouch - dt * 4.5f);
+            BoostPulse = Math.Max(0, BoostPulse - dt * 2.5f);
+            SnapOffset *= (float)Math.Exp(-16 * dt);
+            if (Rail != null) Pace += GrindCarve * dt;
+            else if (Grounded)
+            {
+                PumpPhase = (RollTime / PumpPeriod) % 1f;
+                var stroke = (float)Math.Max(0, Math.Sin(2 * Math.PI * PumpPhase)); // push on the first half
+                Pace += (PumpGain * stroke - CruiseDrag * (Pace - 1f)) * dt;
+            }
+            else Pace += (1f - Pace) * 0.25f * dt; // light air drag toward cruise
+            Pace = Math.Max(MinPace, Math.Min(MaxPace, Pace));
             if (!Grounded) AirTime = (wasGrounded ? 0 : AirTime) + dt;
             if (Rail != null) GrindTime += dt;
 

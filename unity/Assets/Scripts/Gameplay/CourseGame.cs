@@ -14,6 +14,8 @@ namespace PokeMemories.Gameplay
         [SerializeField] PlayMode mode = PlayMode.Course;
         [SerializeField] Animator skater;
         [SerializeField] Camera view;
+        [Tooltip("Track item sprites and background sets. Built by PokeMemories > Build Track Art Set.")]
+        [SerializeField] TrackArtSet art;
         [Tooltip("World units per simulation pixel. 0.0146 makes the 126px sim skater match her 1.84-unit sprite.")]
         [SerializeField] float unitsPerPixel = 0.0146f;
         [SerializeField] float groundY = -1.9f;
@@ -25,11 +27,15 @@ namespace PokeMemories.Gameplay
         // Jump clip: frame 31 starts the takeoff extension, 34+ is the airborne tuck.
         const float JumpTakeoffFrame = 31f, JumpClipFrames = 49f;
         // The player's footprint is [x-22, x+35] in sim pixels, so her visual centre is offset.
+        const int GroundTiles = 24;
+        const float GapDepth = 3f, RailBarThickness = 0.14f, RailPostWidth = 0.14f;
         const float SkaterCentreOffset = (CourseSimulation.PlayerRight - CourseSimulation.PlayerLeft) / 2;
 
         CourseSimulation sim;
         SpriteRenderer skaterSprite;
         Transform ground;
+        SpriteRenderer groundSprite;
+        ParallaxBackground background;
         readonly Dictionary<TrackItem, GameObject> itemViews = new();
         readonly HashSet<TrackItem> liveItems = new();
         string animState;
@@ -59,12 +65,18 @@ namespace PokeMemories.Gameplay
             skaterSprite = skater.GetComponent<SpriteRenderer>();
             skaterSprite.sortingOrder = 10;
 
+            // The ground is a tiled strip that jumps by whole tiles with the camera, so its
+            // pattern stays fixed in the world while the camera scrolls over it.
             ground = new GameObject("Ground").transform;
-            var groundSprite = ground.gameObject.AddComponent<SpriteRenderer>();
-            groundSprite.sprite = ShapeSprites.Square;
-            groundSprite.color = new Color(0.98f, 0.8f, 0.86f);
+            groundSprite = ground.gameObject.AddComponent<SpriteRenderer>();
+            groundSprite.sprite = art.ground;
+            groundSprite.drawMode = SpriteDrawMode.Tiled;
+            groundSprite.tileMode = SpriteTileMode.Continuous;
+            groundSprite.size = new Vector2(GroundTiles * art.ground.bounds.size.x, art.ground.bounds.size.y);
             groundSprite.sortingOrder = 0;
-            ground.localScale = new Vector3(60, 6, 1);
+
+            background = new GameObject("Background").AddComponent<ParallaxBackground>();
+            background.Init(art, view, groundY);
 
             Restart();
         }
@@ -219,8 +231,10 @@ namespace PokeMemories.Gameplay
 
             var camPos = view.transform.position;
             view.transform.position = new Vector3(position.x - skaterScreenOffset, camPos.y, camPos.z);
-            // The ground block is 6 units tall with a centred pivot; its top edge sits on groundY.
-            ground.position = new Vector3(view.transform.position.x, groundY - 3f, 0);
+            var tile = art.ground.bounds.size;
+            ground.position = new Vector3(Mathf.Floor(view.transform.position.x / tile.x) * tile.x, groundY - tile.y / 2, 0);
+            background.Tick(sim.Distance, CourseSimulation.SectionLength, mode == PlayMode.Endless);
+            groundSprite.color = background.GroundTint;
 
             if (jumpRequested)
             {
@@ -275,35 +289,37 @@ namespace PokeMemories.Gameplay
             var width = item.Width * unitsPerPixel;
             var height = -item.Y * unitsPerPixel;
 
-            SpriteRenderer Part(Sprite sprite, Color color, Vector3 position, Vector3 scale, float angle = 0)
+            // Stretches a sprite to a world-space box centred on `position`.
+            SpriteRenderer Part(Sprite sprite, Vector3 position, float w, float h, float angle = 0, int order = 5)
             {
                 var part = new GameObject("part").AddComponent<SpriteRenderer>();
                 part.transform.SetParent(go.transform, false);
                 part.sprite = sprite;
-                part.color = color;
-                part.sortingOrder = 5;
+                part.sortingOrder = order;
                 part.transform.position = position;
-                part.transform.localScale = scale;
+                part.transform.localScale = new Vector3(w / sprite.bounds.size.x, h / sprite.bounds.size.y, 1);
                 part.transform.rotation = Quaternion.Euler(0, 0, angle);
                 return part;
             }
+            Vector3 Resting(float w, float h) => left + new Vector3(w / 2, h / 2, 0);
 
             switch (item.Kind)
             {
                 case ItemKind.Ball:
-                    Part(ShapeSprites.Ball, Color.white, SimToWorld(item.X + item.Width / 2, item.Y), Vector3.one * width);
+                    Part(art.ball, SimToWorld(item.X + item.Width / 2, item.Y), width, width);
                     break;
                 case ItemKind.Cone:
-                    Part(ShapeSprites.Cone, Color.white, left + Vector3.right * width / 2, new Vector3(width, height, 1));
+                    Part(art.cone, Resting(width, height), width, height);
                     break;
                 case ItemKind.Barrier:
-                    Part(ShapeSprites.Barrier, Color.white, left + Vector3.right * width / 2, new Vector3(width, height, 1));
+                    Part(art.barrier, Resting(width, height), width, height);
                     break;
                 case ItemKind.Kicker:
-                    Part(ShapeSprites.Kicker, Color.white, left + Vector3.right * width / 2, new Vector3(width, height, 1));
+                    Part(art.kicker, Resting(width, height), width, height);
                     break;
                 case ItemKind.Gap:
-                    Part(ShapeSprites.Square, new Color(0.35f, 0.22f, 0.3f), left + new Vector3(width / 2, -1.5f, 0), new Vector3(width, 3, 1)).sortingOrder = 1;
+                    // Deeper than the ground strip so no ground shows through.
+                    Part(art.gap, left + new Vector3(width / 2, -GapDepth / 2, 0), width, GapDepth, 0, 1);
                     break;
                 case ItemKind.Rail:
                 case ItemKind.Stairs:
@@ -312,10 +328,9 @@ namespace PokeMemories.Gameplay
                     var end = SimToWorld(item.X + item.Width, item.Y + item.Rise);
                     var along = end - start;
                     var angle = Mathf.Atan2(along.y, along.x) * Mathf.Rad2Deg;
-                    var steel = new Color(0.36f, 0.33f, 0.4f);
-                    Part(ShapeSprites.Square, steel, (start + end) / 2, new Vector3(along.magnitude, 0.07f, 1), angle);
+                    Part(art.railBar, (start + end) / 2, along.magnitude + RailBarThickness, RailBarThickness, angle, 6);
                     foreach (var top in new[] { start + along * 0.08f, end - along * 0.08f })
-                        Part(ShapeSprites.Square, steel, new Vector3(top.x, (top.y + groundY) / 2, 0), new Vector3(0.05f, top.y - groundY, 1));
+                        Part(art.railPost, new Vector3(top.x, (top.y + groundY) / 2, 0), RailPostWidth, top.y - groundY);
                     if (item.Kind == ItemKind.Stairs)
                     {
                         // Steps under the handrail, descending with it.
@@ -324,14 +339,25 @@ namespace PokeMemories.Gameplay
                         {
                             var stepTop = Mathf.Lerp(start.y, end.y, (i + 0.5f) / steps) - 0.45f;
                             var stepX = Mathf.Lerp(start.x, end.x, (i + 0.5f) / steps);
-                            Part(ShapeSprites.Square, new Color(0.85f, 0.72f, 0.78f), new Vector3(stepX, (stepTop + groundY) / 2, 0),
-                                new Vector3(along.x / steps, Mathf.Max(0.02f, stepTop - groundY), 1)).sortingOrder = 2;
+                            var stepHeight = Mathf.Max(0.02f, stepTop - groundY);
+                            Part(art.step, new Vector3(stepX, groundY + stepHeight / 2, 0), along.x / steps, stepHeight, 0, 2);
                         }
                     }
                     break;
                 }
             }
             return go;
+        }
+
+        // Cream drop shadow keeps the HUD readable over both the pale and the dark backgrounds.
+        static void ShadowLabel(Rect rect, string text, GUIStyle style)
+        {
+            var colour = style.normal.textColor;
+            style.normal.textColor = new Color(1f, 0.96f, 0.93f);
+            var offset = Mathf.Max(1f, style.fontSize / 14f);
+            GUI.Label(new Rect(rect.x + offset, rect.y + offset, rect.width, rect.height), text, style);
+            style.normal.textColor = colour;
+            GUI.Label(rect, text, style);
         }
 
         void OnGUI()
@@ -342,24 +368,24 @@ namespace PokeMemories.Gameplay
 
             var hearts = new string('♥', Mathf.Max(0, sim.Hearts)) + new string('♡', 3 - Mathf.Max(0, sim.Hearts));
             var progress = mode == PlayMode.Course ? $"   {Mathf.RoundToInt(sim.Distance / CourseSimulation.CourseLength * 100)}%" : "";
-            GUI.Label(new Rect(20 * scale, 14 * scale, Screen.width, 50 * scale),
+            ShadowLabel(new Rect(20 * scale, 14 * scale, Screen.width, 50 * scale),
                 $"{hearts}   ◓ {sim.Collected}   ★ {Mathf.RoundToInt(sim.TrickScore)}{progress}", label);
 
             var center = new GUIStyle(label) { alignment = TextAnchor.MiddleCenter, fontSize = Mathf.RoundToInt(34 * scale) };
             if (!started)
             {
-                GUI.Label(new Rect(0, Screen.height * 0.22f, Screen.width, 60 * scale), "Tap to start skating ♡", center);
-                GUI.Label(new Rect(0, Screen.height * 0.22f + 55 * scale, Screen.width, 50 * scale),
+                ShadowLabel(new Rect(0, Screen.height * 0.22f, Screen.width, 60 * scale), "Tap to start skating ♡", center);
+                ShadowLabel(new Rect(0, Screen.height * 0.22f + 55 * scale, Screen.width, 50 * scale),
                     "Tap = jump (hold for higher) · land on rails to grind · tricks in the air", new GUIStyle(center) { fontSize = Mathf.RoundToInt(22 * scale) });
             }
             else if (sim.Ended)
             {
-                GUI.Label(new Rect(0, Screen.height * 0.25f, Screen.width, 60 * scale),
+                ShadowLabel(new Rect(0, Screen.height * 0.25f, Screen.width, 60 * scale),
                     sim.Completed ? "Sunset Course cleared! ♡" : "Out of hearts", center);
-                GUI.Label(new Rect(0, Screen.height * 0.25f + 60 * scale, Screen.width, 50 * scale), "Tap to skate again", center);
+                ShadowLabel(new Rect(0, Screen.height * 0.25f + 60 * scale, Screen.width, 50 * scale), "Tap to skate again", center);
             }
             else if (sim.FeedbackTime > 0)
-                GUI.Label(new Rect(0, Screen.height * 0.18f, Screen.width, 60 * scale), sim.Feedback, center);
+                ShadowLabel(new Rect(0, Screen.height * 0.18f, Screen.width, 60 * scale), sim.Feedback, center);
 
             var autoStyle = new GUIStyle(GUI.skin.box) { fontSize = Mathf.RoundToInt(22 * scale), alignment = TextAnchor.MiddleCenter };
             autoButton = new Rect(Screen.width - 170 * scale, 14 * scale, 150 * scale, 56 * scale);

@@ -64,13 +64,14 @@ A Unity 6 (6000.6.4f1) 2D URP project for the mobile (Android + iOS) version. Op
 - `Assets/Editor/SkaterSpriteImporter.cs` — import settings for those frames: sprite pivot at the wheel-contact point (0.5, 12/512), 256 pixels per unit.
 - `Assets/Editor/SkaterAnimationBuilder.cs` — menu **PokeMemories > Build Skater Animations** rebuilds the 12fps clips and `Assets/Animation/Skater/Skater.controller`.
 - `Assets/Scripts/Gameplay/CourseSimulation.cs` — C# port of `components/gameplay.ts` (same constants, 120Hz fixed steps, rail/obstacle rules). Change both together.
-- `Assets/Scripts/Gameplay/CourseGame.cs` — plays the simulation: input (tap/hold or Space/W/Up to jump, J/K/L or on-screen buttons for tricks), camera, placeholder track art (`ShapeSprites.cs`), HUD, and skater animation chosen from simulation state (push on the ground, jump from takeoff, grind on rails). The Auto button / A key runs an autopilot for demos and testing.
+- `Assets/Scripts/Gameplay/CourseGame.cs` — plays the simulation: input (tap/hold or Space/W/Up to jump, J/K/L or on-screen buttons for tricks), camera, track art from `TrackArtSet`, parallax backgrounds (`ParallaxBackground.cs`), HUD, and skater animation chosen from simulation state (push on the ground, jump from takeoff, grind on rails). The Auto button / A key runs an autopilot for demos and testing.
+- `Assets/Art/Track/` and `Assets/Art/Backgrounds/<set>/` — generated item sprites and three seamless 2048x512 parallax sets (Rose Walk, Boardwalk, Golden Hour; sky + far/mid/near). Do not hand-edit; run `node tools/sprites/trackart.mjs`. `TrackArtImporter.cs` sets import settings, and **PokeMemories > Build Track Art Set** rebuilds `Assets/Art/TrackArt.asset` and assigns it to `CourseGame`. Item sprites are stretched to the simulation's item sizes, so the simulation is unaffected.
 - `Assets/Scenes/Course.unity` — the playable course (first build scene).
 - `Assets/Scenes/SkaterPreview.unity` — Play mode preview; tap/Space cycles animations, 1-4 picks one.
 
 ### Sprite Tools (`tools/sprites/`)
 
-Turns the concept videos into aligned transparent frames. Needs ffmpeg and Node.
+Turns the concept videos into aligned transparent frames. Needs ffmpeg and Node. `trackart.mjs` needs only Node: it procedurally draws the track items and backgrounds.
 
 1. Extract frames at 12fps into `raw/<clip>/` with ffmpeg (`idle`, `push`, `jump`, `grind`).
 2. `node cutout.mjs <clip>` (add `--rail` for grind) removes the backdrop into `cut/<clip>/`.

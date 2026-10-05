@@ -29,6 +29,7 @@ namespace PokeMemories.Gameplay
 
         CourseSimulation sim;
         SpriteRenderer skaterSprite;
+        GameFeel feel;
         Transform ground;
         readonly Dictionary<TrackItem, GameObject> itemViews = new();
         readonly HashSet<TrackItem> liveItems = new();
@@ -66,6 +67,8 @@ namespace PokeMemories.Gameplay
             groundSprite.sortingOrder = 0;
             ground.localScale = new Vector3(60, 6, 1);
 
+            feel = gameObject.AddComponent<GameFeel>();
+            feel.SetFollowOffset(skaterScreenOffset);
             Restart();
         }
 
@@ -77,6 +80,7 @@ namespace PokeMemories.Gameplay
             sim.TookOff += () => jumpRequested = true;
             animState = null;
             started = false;
+            feel.Bind(sim, view, groundY);
             skater.transform.rotation = Quaternion.identity;
             skater.transform.localScale = Vector3.one;
         }
@@ -217,8 +221,8 @@ namespace PokeMemories.Gameplay
             var position = SimToWorld(sim.Distance + SkaterCentreOffset, sim.Foot);
             skater.transform.position = position;
 
-            var camPos = view.transform.position;
-            view.transform.position = new Vector3(position.x - skaterScreenOffset, camPos.y, camPos.z);
+            // GameFeel owns the camera (smoothing, shake, zoom); it only reads simulation state.
+            feel.Tick(started, position, position.y);
             // The ground block is 6 units tall with a centred pivot; its top edge sits on groundY.
             ground.position = new Vector3(view.transform.position.x, groundY - 3f, 0);
 

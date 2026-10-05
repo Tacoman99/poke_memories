@@ -279,9 +279,11 @@ MonoBehaviour:
   mode: 0
   skater: {fileID: 1856104126}
   view: {fileID: 1206105460}
+  art: {fileID: 11400000, guid: 73a43e6454311d14b8cd8cb01facd86c, type: 2}
   unitsPerPixel: 0.0146
   groundY: -1.9
   skaterScreenOffset: -3
+  autoPlay: 0
 --- !u!4 &1340820865
 Transform:
   m_ObjectHideFlags: 0

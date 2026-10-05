@@ -1,0 +1,42 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 0fa8e1389718bdf41a7017420eda4e11, type: 3}
+  m_Name: TrackArt
+  m_EditorClassIdentifier: Assembly-CSharp::PokeMemories.Gameplay.TrackArtSet
+  ball: {fileID: 21300000, guid: 4be83eb3aea15534a86bf26f7b527779, type: 3}
+  cone: {fileID: 21300000, guid: 993cc43714164104e84e6a356206b061, type: 3}
+  barrier: {fileID: 21300000, guid: 67276f43c30057f46adaa0da03367026, type: 3}
+  kicker: {fileID: 21300000, guid: 8b2bd6c6eaa4dc242bdff5880e09f5e4, type: 3}
+  gap: {fileID: 21300000, guid: ca5a9794396ce384e90a384f1e0c067f, type: 3}
+  railBar: {fileID: 21300000, guid: c62694e0a72824e40b14ab147eaf5cc1, type: 3}
+  railPost: {fileID: 21300000, guid: 64e402c34ffb3ea4a993201659dae5dd, type: 3}
+  step: {fileID: 21300000, guid: f756022e3c49d2547bb1d6680ae7db13, type: 3}
+  ground: {fileID: 21300000, guid: 26b48b74f8f35a941ab3124a19b3027f, type: 3}
+  backgrounds:
+  - name: Rose Walk
+    sky: {fileID: 21300000, guid: ef6effd7da951914da0f8e4f56c310d6, type: 3}
+    far: {fileID: 21300000, guid: dc0e84998d9a08849ba2efc1da0bfe20, type: 3}
+    mid: {fileID: 21300000, guid: 4f32b94fbb46ecf4380aeb251aef37c8, type: 3}
+    near: {fileID: 21300000, guid: 39b157e4e4270904b9cc86b438800f32, type: 3}
+    groundTint: {r: 1, g: 0.97, b: 0.97, a: 1}
+  - name: Boardwalk Rush
+    sky: {fileID: 21300000, guid: 37e28ffc23f644a49821b9a73b3cf2d4, type: 3}
+    far: {fileID: 21300000, guid: 2ec3bbc2e25c56b4b8c8aeb298cbcc98, type: 3}
+    mid: {fileID: 21300000, guid: 92ab7b8c1dc1ff040ab040bddfb5a5c8, type: 3}
+    near: {fileID: 21300000, guid: a320f842a1703a44789d42a1b54fec03, type: 3}
+    groundTint: {r: 1, g: 0.88, b: 0.8, a: 1}
+  - name: Golden Hour
+    sky: {fileID: 21300000, guid: 8ed60a285a49b73428673327c02f0f02, type: 3}
+    far: {fileID: 21300000, guid: 0dc73d28a79943142b18a36439fdeb4f, type: 3}
+    mid: {fileID: 21300000, guid: 13ea78252d820304c92ade65ccd17e5f, type: 3}
+    near: {fileID: 21300000, guid: 9aaa97fe0d009684fae754c6b0395feb, type: 3}
+    groundTint: {r: 1, g: 0.78, b: 0.62, a: 1}

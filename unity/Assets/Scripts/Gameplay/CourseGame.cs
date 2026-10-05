@@ -33,6 +33,7 @@ namespace PokeMemories.Gameplay
 
         CourseSimulation sim;
         SpriteRenderer skaterSprite;
+        GameFeel feel;
         Transform ground;
         SpriteRenderer groundSprite;
         ParallaxBackground background;
@@ -78,6 +79,8 @@ namespace PokeMemories.Gameplay
             background = new GameObject("Background").AddComponent<ParallaxBackground>();
             background.Init(art, view, groundY);
 
+            feel = gameObject.AddComponent<GameFeel>();
+            feel.SetFollowOffset(skaterScreenOffset);
             Restart();
         }
 
@@ -89,6 +92,7 @@ namespace PokeMemories.Gameplay
             sim.TookOff += () => jumpRequested = true;
             animState = null;
             started = false;
+            feel.Bind(sim, view, groundY);
             skater.transform.rotation = Quaternion.identity;
             skater.transform.localScale = Vector3.one;
         }
@@ -229,8 +233,8 @@ namespace PokeMemories.Gameplay
             var position = SimToWorld(sim.Distance + SkaterCentreOffset, sim.Foot);
             skater.transform.position = position;
 
-            var camPos = view.transform.position;
-            view.transform.position = new Vector3(position.x - skaterScreenOffset, camPos.y, camPos.z);
+            // GameFeel owns the camera (smoothing, shake, zoom); it only reads simulation state.
+            feel.Tick(started, position, position.y);
             var tile = art.ground.bounds.size;
             ground.position = new Vector3(Mathf.Floor(view.transform.position.x / tile.x) * tile.x, groundY - tile.y / 2, 0);
             background.Tick(sim.Distance, CourseSimulation.SectionLength, mode == PlayMode.Endless);

@@ -74,9 +74,6 @@ namespace PokeMemories.Gameplay
 #endif
             skaterSprite = skater.GetComponent<SpriteRenderer>();
             skaterSprite.sortingOrder = 10;
-            // The source frames face left but the course scrolls right; flip at render time so
-            // the frames and their wheel-contact pivot (centred horizontally) stay untouched.
-            skaterSprite.flipX = true;
 
             // The ground is a tiled strip that jumps by whole tiles with the camera, so its
             // pattern stays fixed in the world while the camera scrolls over it.
@@ -107,7 +104,7 @@ namespace PokeMemories.Gameplay
             bailUntil = 0;
             landUntil = 0;
             started = false;
-            feel.Bind(sim, view, groundY);
+            feel.Bind(sim, view, groundY, skaterSprite.sharedMaterial);
             skater.transform.rotation = Quaternion.identity;
             skater.transform.localScale = Vector3.one;
         }

@@ -17,7 +17,7 @@ const TARGET_STANDING = 470; // her full standing height in output pixels
 // different zoom; these were matched by comparing head and skate sizes between clips.
 const CLIPS = {
   idle: { from: 1, to: 49, standing: 1127 },
-  push: { from: 1, to: 61, standing: 1100 },
+  push: { from: 1, to: 61, standing: 1100, mirror: true }, // source video faces left; the course travels right
   jump: { from: 1, to: 49, standing: 1000 },
   grind: { from: 22, to: 48, standing: 980 },
 };
@@ -86,6 +86,12 @@ function transformFrame(src, { rot = 0, sx = 1, sy = 1, dx = 0, dy = 0 }) {
   return out;
 }
 
+// Remove old frames but keep the folder and the .meta files, so sprite GUIDs survive a repack.
+function clearFrames(dir) {
+  fs.mkdirSync(dir, { recursive: true });
+  for (const f of fs.readdirSync(dir)) if (f.endsWith('.png')) fs.rmSync(path.join(dir, f));
+}
+
 const OUT_ROOT = path.resolve('../../unity/Assets/Art/Skater');
 
 // Horizontal anchor: mean x of opaque pixels in the hip band, which moves least between poses.
@@ -96,6 +102,16 @@ function hipX(png, contactY, bodyHeight) {
   let sum = 0, n = 0;
   for (let y = top; y < bottom; y++) for (let x = 0; x < w; x++) if (d[(y * w + x) * 4 + 3] > 128) { sum += x; n++; }
   return n ? sum / n : w / 2;
+}
+
+// Mirror a packed frame about the vertical centre line. Frames are anchored on the hip at x = CANVAS/2,
+// so the wheel-contact pivot stays where it was.
+function mirrorFrame(png) {
+  for (let y = 0; y < CANVAS; y++)
+    for (let x = 0; x < CANVAS / 2; x++) {
+      const a = (y * CANVAS + x) * 4, b = (y * CANVAS + (CANVAS - 1 - x)) * 4;
+      for (let c = 0; c < 4; c++) { const t = png.data[a + c]; png.data[a + c] = png.data[b + c]; png.data[b + c] = t; }
+    }
 }
 
 // Bilinear resample of premultiplied colour so transparent edges don't darken.
@@ -122,7 +138,7 @@ function sampleInto(src, dst, scale, offX, offY) {
 
 const manifest = { canvas: CANVAS, pivot: { x: 0.5, y: CONTACT_MARGIN / CANVAS }, fps: 12, clips: {} };
 
-for (const [clip, { from, to, standing }] of Object.entries(CLIPS)) {
+for (const [clip, { from, to, standing, mirror }] of Object.entries(CLIPS)) {
   const stats = JSON.parse(fs.readFileSync(path.join('cut', clip, 'stats.json'), 'utf8'));
   const frames = stats.slice(from - 1, to);
   const pngs = frames.map((s) => PNG.sync.read(fs.readFileSync(path.join('cut', clip, s.file))));
@@ -131,8 +147,7 @@ for (const [clip, { from, to, standing }] of Object.entries(CLIPS)) {
   const scale = TARGET_STANDING / standing;
 
   const outDir = path.join(OUT_ROOT, clip);
-  fs.rmSync(outDir, { recursive: true, force: true });
-  fs.mkdirSync(outDir, { recursive: true });
+  clearFrames(outDir);
   let clipped = 0;
   const packed = [];
   pngs.forEach((png, k) => {
@@ -142,6 +157,7 @@ for (const [clip, { from, to, standing }] of Object.entries(CLIPS)) {
     if (offY + frames[k].minY * scale < 0) clipped++;
     const out = new PNG({ width: CANVAS, height: CANVAS });
     sampleInto(png, out, scale, offX, offY);
+    if (mirror) mirrorFrame(out);
     packed.push(out);
   });
   const range = LOOPS[clip] ? bestLoop(packed, LOOPS[clip].min) : [0, packed.length - 1];
@@ -154,8 +170,7 @@ for (const [clip, { from, to, standing }] of Object.entries(CLIPS)) {
 
 for (const [clip, { frames, make }] of Object.entries(DERIVED)) {
   const outDir = path.join(OUT_ROOT, clip);
-  fs.rmSync(outDir, { recursive: true, force: true });
-  fs.mkdirSync(outDir, { recursive: true });
+  clearFrames(outDir);
   for (let k = 0; k < frames; k++) {
     const spec = make(k / (frames - 1));
     writePng(outDir, clip, k, transformFrame(PACKED[spec.src[0]][spec.src[1]], spec));

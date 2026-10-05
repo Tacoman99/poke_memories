@@ -32,12 +32,19 @@ namespace PokeMemories.Gameplay
         bool wasGrounded = true;
         bool wasStarted;
 
-        public void Bind(CourseSimulation simulation, Camera camera, float groundWorldY)
+        // Particles reuse a material that is already referenced by the scene (the skater's sprite material),
+        // so a player build can never lose it the way a Shader.Find lookup can.
+        Material particleMaterial;
+        bool baseOrthoCaptured;
+
+        public void Bind(CourseSimulation simulation, Camera camera, float groundWorldY, Material spriteMaterial)
         {
             sim = simulation;
             view = camera;
             groundY = groundWorldY;
-            baseOrthoSize = camera.orthographicSize;
+            particleMaterial = spriteMaterial;
+            // Capture once: a restart while zoomed out must not take the zoomed size as the base.
+            if (!baseOrthoCaptured) { baseOrthoSize = camera.orthographicSize; baseOrthoCaptured = true; }
             camPlaced = false;
             lastLandings = sim.Landings;
             lastCollected = sim.Collected;
@@ -160,8 +167,16 @@ namespace PokeMemories.Gameplay
             source.pitch = pitch;
         }
 
+        // Unity adds the Android VIBRATE permission to the manifest only when the built code references
+        // Handheld.Vibrate. The JNI vibrator path below needs that permission, so keep a (never taken)
+        // reference to it. This flag is never set.
+        static bool neverTrue;
+
         static void Haptic(long milliseconds, int amplitude)
         {
+#if UNITY_ANDROID && !UNITY_EDITOR
+            if (neverTrue) Handheld.Vibrate();
+#endif
 #if UNITY_ANDROID && !UNITY_EDITOR
             try
             {
@@ -223,7 +238,7 @@ namespace PokeMemories.Gameplay
             scale.size = new ParticleSystem.MinMaxCurve(1, AnimationCurve.Linear(0, 1, 1, 0.2f));
 
             var renderer = go.GetComponent<ParticleSystemRenderer>();
-            renderer.sharedMaterial = new Material(Shader.Find("Sprites/Default"));
+            renderer.sharedMaterial = particleMaterial;
             renderer.sortingOrder = order;
             ps.Play();
             return ps;

@@ -1,5 +1,5 @@
 fileFormatVersion: 2
-guid: 31a98ab9d5fcfdb4791128344e6db6f3
+guid: f5966d3b322c5444b8df4c7258884e1e
 TextureImporter:
   internalIDToNameTable:
   - first:
@@ -147,10 +147,10 @@ TextureImporter:
       name: grind_004_0
       rect:
         serializedVersion: 2
-        x: 101
-        y: 12
-        width: 35
-        height: 17
+        x: 113
+        y: 13
+        width: 50
+        height: 7
       alignment: 0
       pivot: {x: 0, y: 0}
       border: {x: 0, y: 0, z: 0, w: 0}
@@ -169,10 +169,10 @@ TextureImporter:
       name: grind_004_1
       rect:
         serializedVersion: 2
-        x: 135
+        x: 161
         y: 10
-        width: 253
-        height: 402
+        width: 257
+        height: 415
       alignment: 0
       pivot: {x: 0, y: 0}
       border: {x: 0, y: 0, z: 0, w: 0}
@@ -200,9 +200,7 @@ TextureImporter:
     secondaryTextures: []
     spriteCustomMetadata:
       entries: []
-    nameFileIdTable:
-      grind_004_0: -767609756054580866
-      grind_004_1: -6841476444992820927
+    nameFileIdTable: {}
   mipmapLimitGroupName: 
   pSDRemoveMatte: 0
   userData: 

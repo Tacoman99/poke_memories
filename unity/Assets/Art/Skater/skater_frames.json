@@ -8,6 +8,10 @@
   "clips": {
     "idle": {
       "frames": 49,
+      "packedRange": [
+        0,
+        48
+      ],
       "sourceFrames": [
         1,
         49
@@ -16,7 +20,11 @@
       "scale": 0.417
     },
     "push": {
-      "frames": 61,
+      "frames": 29,
+      "packedRange": [
+        30,
+        58
+      ],
       "sourceFrames": [
         1,
         61
@@ -26,6 +34,10 @@
     },
     "jump": {
       "frames": 49,
+      "packedRange": [
+        0,
+        48
+      ],
       "sourceFrames": [
         1,
         49
@@ -34,13 +46,37 @@
       "scale": 0.47
     },
     "grind": {
-      "frames": 27,
+      "frames": 8,
+      "packedRange": [
+        18,
+        25
+      ],
       "sourceFrames": [
         22,
         48
       ],
       "standingPx": 980,
       "scale": 0.4796
+    },
+    "grab": {
+      "frames": 6,
+      "derivedFrom": "jump"
+    },
+    "kick": {
+      "frames": 6,
+      "derivedFrom": "jump"
+    },
+    "spin": {
+      "frames": 12,
+      "derivedFrom": "jump"
+    },
+    "land": {
+      "frames": 6,
+      "derivedFrom": "jump"
+    },
+    "bail": {
+      "frames": 10,
+      "derivedFrom": "jump"
     }
   }
 }

@@ -57,6 +57,7 @@ namespace PokeMemories.Gameplay
         public string Feedback = "Rose Walk · Let's roll!";
         public float FeedbackTime = 2;
         public int Landings;
+        public int Bails; // animation-only counter: +1 each time a trick is bailed on touchdown
         public float LandingPulse, AirBlend, GrindBlend, RollTime, AirTime, GrindTime;
         public TrickKind? Trick;
         public float TrickTime, PendingScore;
@@ -191,6 +192,7 @@ namespace PokeMemories.Gameplay
         {
             if (Trick != null)
             {
+                Bails++;
                 Trick = null;
                 PendingScore = 0;
                 PendingTricks = 0;

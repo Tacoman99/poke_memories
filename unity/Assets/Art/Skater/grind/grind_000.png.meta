@@ -1,10 +1,13 @@
 fileFormatVersion: 2
-guid: 96a7153275df08344b0aa72787718b22
+guid: 1bd233d5134e7eb419c9e5c8ac8ce3ec
 TextureImporter:
   internalIDToNameTable:
   - first:
       213: -4075128223928304857
     second: grind_000_0
+  - first:
+      213: -1981229283028706650
+    second: grind_000_1
   externalObjects: {}
   serializedVersion: 13
   mipmaps:
@@ -144,10 +147,10 @@ TextureImporter:
       name: grind_000_0
       rect:
         serializedVersion: 2
-        x: 97
-        y: 10
-        width: 302
-        height: 384
+        x: 110
+        y: 13
+        width: 56
+        height: 7
       alignment: 0
       pivot: {x: 0, y: 0}
       border: {x: 0, y: 0, z: 0, w: 0}
@@ -158,6 +161,28 @@ TextureImporter:
       bones: []
       spriteID: 72bb596a87c3277c0800000000000000
       internalID: -4075128223928304857
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: grind_000_1
+      rect:
+        serializedVersion: 2
+        x: 153
+        y: 10
+        width: 257
+        height: 418
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: 6aad87ec6724184e0800000000000000
+      internalID: -1981229283028706650
       vertices: []
       indices: 
       edges: []
@@ -175,8 +200,7 @@ TextureImporter:
     secondaryTextures: []
     spriteCustomMetadata:
       entries: []
-    nameFileIdTable:
-      grind_000_0: -4075128223928304857
+    nameFileIdTable: {}
   mipmapLimitGroupName: 
   pSDRemoveMatte: 0
   userData: 

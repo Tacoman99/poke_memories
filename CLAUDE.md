@@ -56,6 +56,27 @@ Run the mechanics tests and build when changing gameplay. The mechanics tests co
 - Consistent rose/pink color palette throughout (background: `#fff1f2`)
 - ES modules (`"type": "module"` in package.json)
 
+### Unity Port (`unity/`)
+
+A Unity 6 (6000.6.4f1) 2D URP project for the mobile (Android + iOS) version. Open `unity/` as the project root.
+
+- `Assets/Art/Skater/<clip>/` — 512x512 skater frames (idle, push, jump, grind) generated from the concept videos; do not hand-edit, re-run the sprite tools instead.
+- `Assets/Editor/SkaterSpriteImporter.cs` — import settings for those frames: sprite pivot at the wheel-contact point (0.5, 12/512), 256 pixels per unit.
+- `Assets/Editor/SkaterAnimationBuilder.cs` — menu **PokeMemories > Build Skater Animations** rebuilds the 12fps clips and `Assets/Animation/Skater/Skater.controller`.
+- `Assets/Scripts/Gameplay/CourseSimulation.cs` — C# port of `components/gameplay.ts` (same constants, 120Hz fixed steps, rail/obstacle rules). Change both together.
+- `Assets/Scripts/Gameplay/CourseGame.cs` — plays the simulation: input (tap/hold or Space/W/Up to jump, J/K/L or on-screen buttons for tricks), camera, placeholder track art (`ShapeSprites.cs`), HUD, and skater animation chosen from simulation state (push on the ground, jump from takeoff, grind on rails). The Auto button / A key runs an autopilot for demos and testing.
+- `Assets/Scenes/Course.unity` — the playable course (first build scene).
+- `Assets/Scenes/SkaterPreview.unity` — Play mode preview; tap/Space cycles animations, 1-4 picks one.
+
+### Sprite Tools (`tools/sprites/`)
+
+Turns the concept videos into aligned transparent frames. Needs ffmpeg and Node.
+
+1. Extract frames at 12fps into `raw/<clip>/` with ffmpeg (`idle`, `push`, `jump`, `grind`).
+2. `node cutout.mjs <clip>` (add `--rail` for grind) removes the backdrop into `cut/<clip>/`.
+3. `node pack.mjs` aligns frames on the wheel-contact point, scales each clip by its `standing` height estimate, and writes `unity/Assets/Art/Skater/`.
+4. `bash preview.sh <clips...>` renders contact strips into `preview/` for checking.
+
 ### Sprite Artwork
 
 The current character is a procedural illustration, not an artist-drawn sprite sheet. Exporting it as PNG does not by itself improve its quality. A future sprite replacement needs an approved character design, consistent rolling/push frames, ascent/descent frames, a landing animation, and a grind loop. Use transparent frames of the same size (for example 256 by 256), with a shared wheel-contact anchor and documented frame order and timing. Keep the simulation independent of animation: feet remain anchored to `state.foot`, and visual frames must not change jump height or rail collision.

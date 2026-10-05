@@ -1,0 +1,11 @@
+# Unity YAML and scripts: keep LF so Windows and macOS (iOS builds) don't churn line endings.
+*.cs text eol=lf
+*.meta text eol=lf
+*.unity text eol=lf
+*.prefab text eol=lf
+*.asset text eol=lf
+*.anim text eol=lf
+*.controller text eol=lf
+*.mat text eol=lf
+*.json text eol=lf
+*.png binary

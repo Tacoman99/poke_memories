@@ -1,0 +1,46 @@
+{
+  "canvas": 512,
+  "pivot": {
+    "x": 0.5,
+    "y": 0.0234375
+  },
+  "fps": 12,
+  "clips": {
+    "idle": {
+      "frames": 49,
+      "sourceFrames": [
+        1,
+        49
+      ],
+      "standingPx": 1127,
+      "scale": 0.417
+    },
+    "push": {
+      "frames": 61,
+      "sourceFrames": [
+        1,
+        61
+      ],
+      "standingPx": 1100,
+      "scale": 0.4273
+    },
+    "jump": {
+      "frames": 49,
+      "sourceFrames": [
+        1,
+        49
+      ],
+      "standingPx": 1000,
+      "scale": 0.47
+    },
+    "grind": {
+      "frames": 27,
+      "sourceFrames": [
+        22,
+        48
+      ],
+      "standingPx": 980,
+      "scale": 0.4796
+    }
+  }
+}

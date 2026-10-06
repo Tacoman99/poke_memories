@@ -9,6 +9,8 @@ namespace PokeMemories.Menu
     {
         public string type;
         public string url;
+        /// <summary>Extra clockwise rotation in degrees for photos stored sideways.</summary>
+        public int rotate;
         public bool IsVideo => type == "video";
     }
 

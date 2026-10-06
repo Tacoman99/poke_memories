@@ -296,7 +296,7 @@ namespace PokeMemories.Gameplay
             {
                 case UiButton.Auto: autoPlay = !autoPlay; break;
                 case UiButton.Menu: menu.ShowMenu(); break;
-                case UiButton.Book: menu.OpenBook(); break;
+                case UiButton.Book: menu.OpenBook(lastReward?.Earned ?? 0); break;
             }
         }
 

@@ -10,12 +10,12 @@ namespace PokeMemories.Menu
     public static class UIInput
     {
         public static Vector2 Position;
-        public static bool Tap, Dragging;
-        public static Vector2 TapPosition, DragDelta;
+        public static bool Tap, Dragging, DragReleased;
+        public static Vector2 TapPosition, DragDelta, DragTotal;
         public static float Wheel;
 
         static bool tracking;
-        static Vector2 last;
+        static Vector2 last, start;
         static float travelled;
 
         /// <summary>UI scale: 1 at 720 tall in landscape, limited by width so portrait phones fit.</summary>
@@ -24,6 +24,7 @@ namespace PokeMemories.Menu
         public static void Update()
         {
             Tap = false;
+            DragReleased = false;
             Dragging = false;
             DragDelta = Vector2.zero;
             Wheel = Mouse.current != null ? Mouse.current.scroll.ReadValue().y : 0;
@@ -38,6 +39,7 @@ namespace PokeMemories.Menu
                 tracking = true;
                 travelled = 0;
                 last = Position;
+                start = Position;
             }
             else if (tracking && pointer.press.isPressed)
             {
@@ -51,6 +53,7 @@ namespace PokeMemories.Menu
             {
                 tracking = false;
                 if (travelled <= 14 * Scale) { Tap = true; TapPosition = Position; }
+                else { DragReleased = true; DragTotal = Position - start; }
             }
         }
 

@@ -38,10 +38,10 @@ namespace PokeMemories.Menu
             game.BeginRun(mode);
         }
 
-        public void OpenBook()
+        public void OpenBook(int newMemories = 0)
         {
             Screen = GameScreen.Book;
-            book.Open();
+            book.Open(newMemories);
         }
 
         // ───────────── Main menu layout (in UIInput.Scale units) ─────────────

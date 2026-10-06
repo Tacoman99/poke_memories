@@ -45,6 +45,9 @@ namespace PokeMemories.Gameplay
             particleMaterial = spriteMaterial;
             // Capture once: a restart while zoomed out must not take the zoomed size as the base.
             if (!baseOrthoCaptured) { baseOrthoSize = camera.orthographicSize; baseOrthoCaptured = true; }
+            // The scene has no AudioListener, which silences every AudioSource.
+            if (camera.GetComponent<AudioListener>() == null && Object.FindAnyObjectByType<AudioListener>() == null)
+                camera.gameObject.AddComponent<AudioListener>();
             camPlaced = false;
             lastLandings = sim.Landings;
             lastCollected = sim.Collected;

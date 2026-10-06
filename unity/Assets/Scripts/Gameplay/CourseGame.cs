@@ -34,6 +34,7 @@ namespace PokeMemories.Gameplay
         CourseSimulation sim;
         SpriteRenderer skaterSprite;
         GameFeel feel;
+        VisualPolish polish;
         Transform ground;
         SpriteRenderer groundSprite;
         ParallaxBackground background;
@@ -90,6 +91,7 @@ namespace PokeMemories.Gameplay
 
             feel = gameObject.AddComponent<GameFeel>();
             feel.SetFollowOffset(skaterScreenOffset);
+            polish = gameObject.AddComponent<VisualPolish>();
             Restart();
         }
 
@@ -105,6 +107,7 @@ namespace PokeMemories.Gameplay
             landUntil = 0;
             started = false;
             feel.Bind(sim, view, groundY, skaterSprite.sharedMaterial);
+            polish.Bind(sim, view, skaterSprite.sharedMaterial, skater.transform);
             skater.transform.rotation = Quaternion.identity;
             skater.transform.localScale = Vector3.one;
         }
@@ -207,15 +210,25 @@ namespace PokeMemories.Gameplay
                         ItemKind.Kicker => -1f, // ride it; the kicker launches her
                         _ => 95f,
                     };
-                    if (ahead > 0 && ahead < trigger) { pressed = true; break; }
+                    if (ahead > 0 && ahead < trigger * sim.Pace) { pressed = true; break; }
                 }
             }
             else if (sim.Rail != null)
             {
                 // Hop off near the end of a rail so she clears whatever comes after.
                 var rail = sim.Items.Find(item => item.Id == sim.Rail);
-                if (rail != null && rail.X + rail.Width - sim.Distance < 30) pressed = true;
+                if (rail != null && rail.X + rail.Width - sim.Distance < 30 * sim.Pace)
+                {
+                    // Hop for the extra air time only if no obstacle waits where she would land;
+                    // otherwise just roll off the end and jump the obstacle from the ground.
+                    var railEnd = rail.X + rail.Width;
+                    var blocked = sim.Items.Exists(item => !item.Taken && item.Kind != ItemKind.Ball && item != rail
+                        && item.X > railEnd && item.X < railEnd + 380 * sim.Pace);
+                    pressed = !blocked;
+                }
             }
+            // A held press cannot start a new jump: lift the finger for a frame first, like a real tap.
+            if (pressed && sim.Held && sim.Grounded) { pressed = false; held = false; return; }
             held = pressed || (!sim.Grounded && sim.Velocity < 0);
             // One trick per jump, right after takeoff while there is time to finish it.
             if (!sim.Grounded && sim.Trick == null && sim.AirTime < 0.05f && sim.Velocity < -500)
@@ -247,6 +260,7 @@ namespace PokeMemories.Gameplay
 
             // GameFeel owns the camera (smoothing, shake, zoom); it only reads simulation state.
             feel.Tick(started, position, position.y);
+            polish.Tick(started);
             var tile = art.ground.bounds.size;
             ground.position = new Vector3(Mathf.Floor(view.transform.position.x / tile.x) * tile.x, groundY - tile.y / 2, 0);
             background.Tick(sim.Distance, CourseSimulation.SectionLength, mode == PlayMode.Endless);

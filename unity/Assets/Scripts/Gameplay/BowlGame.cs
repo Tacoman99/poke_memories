@@ -114,6 +114,7 @@ namespace PokeMemories.Gameplay
             ResetEffects();
             baseOrtho = FitOrtho();
             view.orthographicSize = baseOrtho;
+            orthoVelocity = 0;
             view.transform.position = new Vector3(Origin.x, CameraBase, view.transform.position.z);
             Place(sim.CurrentPose());
             ClearTrail();
@@ -168,16 +169,18 @@ namespace PokeMemories.Gameplay
         readonly Rect[] trickButtons = new Rect[4];
         Rect againButton, bookButton, resultMenuButton;
 
+        static bool Narrow => Screen.width < Screen.height * 1.2f;
+
         void Layout()
         {
             var s = UIInput.Scale;
             float W = Screen.width, H = Screen.height;
             var top = 14 * s;
-            menuButton = new Rect(W - 166 * s, top, 150 * s, 52 * s);
-            autoButton = new Rect(W - 330 * s, top, 150 * s, 52 * s);
+            menuButton = Narrow ? new Rect(W - 124 * s, top, 108 * s, 52 * s) : new Rect(W - 166 * s, top, 150 * s, 52 * s);
+            autoButton = Narrow ? Rect.zero : new Rect(W - 330 * s, top, 150 * s, 52 * s);
 
             float bw = 132 * s, bh = 80 * s, gap = 12 * s;
-            var cols = Mathf.Clamp(Mathf.FloorToInt((W - 24 * s) / (bw + gap)), 1, 4);
+            var cols = Narrow ? 2 : Mathf.Clamp(Mathf.FloorToInt((W - 24 * s) / (bw + gap)), 1, 4);
             var rows = Mathf.CeilToInt(4f / cols);
             for (var i = 0; i < 4; i++)
             {
@@ -222,6 +225,7 @@ namespace PokeMemories.Gameplay
             var keyboard = Keyboard.current;
             var startPressed = false;
             var tapped = false;
+            var anyDown = false;
             var tapPoint = Vector2.zero;
 
             if (keyboard != null)
@@ -245,6 +249,7 @@ namespace PokeMemories.Gameplay
                 {
                     var pos = touch.position.ReadValue();
                     var gui = new Vector2(pos.x, Screen.height - pos.y);
+                    anyDown |= touch.press.isPressed;
                     if (touch.press.wasPressedThisFrame) { tapped = true; tapPoint = gui; PressAt(gui); if (menu.Screen != GameScreen.Bowl) return; }
                     if (touch.press.isPressed && !OverUi(gui)) pumpHeld = true;
                     startPressed |= touch.press.wasPressedThisFrame && !OverUi(gui);
@@ -255,9 +260,17 @@ namespace PokeMemories.Gameplay
                 var mouse = Mouse.current;
                 var pos = mouse.position.ReadValue();
                 var gui = new Vector2(pos.x, Screen.height - pos.y);
+                anyDown |= mouse.leftButton.isPressed;
                 if (mouse.leftButton.wasPressedThisFrame) { tapped = true; tapPoint = gui; PressAt(gui); if (menu.Screen != GameScreen.Bowl) return; }
                 if (mouse.leftButton.isPressed && !OverUi(gui)) pumpHeld = true;
                 startPressed |= mouse.leftButton.wasPressedThisFrame && !OverUi(gui);
+            }
+
+            if (waitRelease)
+            {
+                if (!anyDown) waitRelease = false;
+                pumpHeld = false;
+                startPressed = false;
             }
 
             if (sim.Ended)
@@ -266,7 +279,7 @@ namespace PokeMemories.Gameplay
                 {
                     if (bookButton.Contains(tapPoint) && lastReward is { Earned: > 0 }) { menu.OpenBook(lastReward.Value.Earned); return; }
                     if (resultMenuButton.Contains(tapPoint)) { menu.ShowMenu(); return; }
-                    if (againButton.Contains(tapPoint)) { Restart(); return; }
+                    if (againButton.Contains(tapPoint)) { Restart(); waitRelease = true; return; }
                 }
                 if (autoPlay && Time.unscaledTime - endedAt > 3f) Restart();
                 return;
@@ -290,6 +303,7 @@ namespace PokeMemories.Gameplay
             if (!started) pumpHeld = false;
         }
 
+        bool waitRelease;
         int autoLip;
         bool autoWasOutward;
 
@@ -447,6 +461,7 @@ namespace PokeMemories.Gameplay
 
         void UpdateCamera()
         {
+            baseOrtho = FitOrtho();
             var h = sim.Airborne ? sim.Air : 0;
             var zoomTarget = baseOrtho * Mathf.Lerp(1f, 1.2f, Mathf.Clamp01(h / 260f));
             view.orthographicSize = Mathf.SmoothDamp(view.orthographicSize, zoomTarget, ref orthoVelocity, 0.3f);

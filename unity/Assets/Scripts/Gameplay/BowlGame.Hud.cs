@@ -92,8 +92,8 @@ namespace PokeMemories.Gameplay
         Rect IntroCard(float s)
         {
             var w = Mathf.Min(Screen.width * 0.92f, 700 * s);
-            var h = Mathf.Min(Screen.height * 0.78f, 430 * s);
-            return new Rect((Screen.width - w) / 2, Mathf.Max(8 * s, (Screen.height - h) / 2 - 24 * s), w, h);
+            var h = Narrow ? Mathf.Min(Screen.height * 0.88f, 640 * s) : Mathf.Min(Screen.height * 0.78f, 430 * s);
+            return new Rect((Screen.width - w) / 2, Mathf.Max(8 * s, (Screen.height - h) / 2 - (Narrow ? 0 : 24 * s)), w, h);
         }
 
         void LayoutResult(float s)
@@ -153,8 +153,8 @@ namespace PokeMemories.Gameplay
             }
 
             // Buttons.
-            GlassButton(autoButton, autoPlay ? "Auto: ON (A)" : "Auto: off (A)", 20 * s, UIKit.Hex("#f43f5e"), autoPlay, "auto");
-            GlassButton(menuButton, "Menu (Esc)", 20 * s, UIKit.Hex("#6b1233"), false, "menu");
+            if (!Narrow) GlassButton(autoButton, autoPlay ? "Auto: ON (A)" : "Auto: off (A)", 20 * s, UIKit.Hex("#f43f5e"), autoPlay, "auto");
+            GlassButton(menuButton, Narrow ? "Menu" : "Menu (Esc)", 20 * s, UIKit.Hex("#6b1233"), false, "menu");
             if (started && !sim.Ended)
             {
                 var air = sim.Airborne;
@@ -180,7 +180,7 @@ namespace PokeMemories.Gameplay
 
         void DrawScoreboard(float s, float t)
         {
-            var hud = new Rect(16 * s, 14 * s, 340 * s, 56 * s);
+            var hud = new Rect(16 * s, 14 * s, Mathf.Min(340 * s, menuButton.x - 28 * s), 56 * s);
             Glass(hud);
             var seconds = Mathf.CeilToInt(sim.TimeLeft);
             var low = started && seconds <= 10 && !sim.Ended;
@@ -263,7 +263,7 @@ namespace PokeMemories.Gameplay
             UIKit.Rotated(-0.8f, card, () =>
             {
                 UIKit.Label(new Rect(card.x, card.y + 22 * s, card.width, 80 * s), "Rose Bowl", 56 * s, UIKit.Rose600, TextAnchor.MiddleCenter, false, FontStyle.Normal, Look.Title);
-                UIKit.Label(new Rect(card.x + 30 * s, card.y + 98 * s, card.width - 60 * s, 34 * s), "60 seconds to carve, air out and land your tricks", 22 * s, UIKit.Rose500);
+                UIKit.Label(new Rect(card.x + 30 * s, card.y + 98 * s, card.width - 60 * s, (Narrow ? 64 : 34) * s), "60 seconds to carve, air out and land your tricks", 22 * s, UIKit.Rose500);
                 var lines = new (string head, string body)[]
                 {
                     ("Pump", "hold anywhere (or Space) to build speed until she airs out of the coping"),
@@ -272,6 +272,13 @@ namespace PokeMemories.Gameplay
                 };
                 for (var i = 0; i < lines.Length; i++)
                 {
+                    if (Narrow)
+                    {
+                        var ny = card.y + 172 * s + i * 112 * s;
+                        UIKit.Label(new Rect(card.x + 30 * s, ny, card.width - 60 * s, 30 * s), lines[i].head, 26 * s, UIKit.Rose600, TextAnchor.MiddleLeft);
+                        UIKit.Label(new Rect(card.x + 30 * s, ny + 28 * s, card.width - 60 * s, 78 * s), lines[i].body, 20 * s, UIKit.Ink, TextAnchor.UpperLeft, true, FontStyle.Normal);
+                        continue;
+                    }
                     var y = card.y + 142 * s + i * 62 * s;
                     UIKit.Label(new Rect(card.x + 36 * s, y, 130 * s, 54 * s), lines[i].head, 24 * s, UIKit.Rose600, TextAnchor.MiddleLeft);
                     UIKit.Label(new Rect(card.x + 166 * s, y, card.width - 202 * s, 54 * s), lines[i].body, 19 * s, UIKit.Ink, TextAnchor.MiddleLeft, true, FontStyle.Normal);

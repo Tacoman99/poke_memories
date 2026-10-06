@@ -74,6 +74,16 @@ namespace PokeMemories.Gameplay
             }
             for (var i = 0; i < pumpRings.Length; i++) pumpRings[i] = NewSprite(root, "Pump Ring", BowlArt.Ring(), OrderBlob);
 
+            // Warm sheen on the bowl floor and a soft glow behind the mural heart, like the course pavement sheen.
+            var sheen = NewSprite(root, "Floor Sheen", BowlArt.Blob(), OrderScene + 1);
+            sheen.color = new Color(1f, 0.82f, 0.62f, 0.4f);
+            sheen.transform.position = World(0, 4);
+            sheen.transform.localScale = new Vector3(6.2f, 0.5f, 1);
+            var heartGlow = NewSprite(root, "Heart Glow", BowlArt.Blob(), OrderScene + 1);
+            heartGlow.color = new Color(1f, 0.45f, 0.62f, 0.3f);
+            heartGlow.transform.position = World(0, 92);
+            heartGlow.transform.localScale = Vector3.one * 3.4f;
+
             BuildEffects(root);
             BuildAudio();
         }
@@ -186,7 +196,7 @@ namespace PokeMemories.Gameplay
 
         // ───────────── Particles ─────────────
 
-        ParticleSystem dust, sparkle, hearts, trailSparks;
+        ParticleSystem dust, sparkle, hearts, trailSparks, motes;
         readonly List<Material> fxMaterials = new();
         int seenLaunches, seenTricks, seenPerfects, seenStalls;
         float seenLanding;
@@ -199,6 +209,14 @@ namespace PokeMemories.Gameplay
             sparkle = MakeParticles(root, "Sparkle", Look.Sparkle, Color.white, new Color(1f, 0.7f, 0.9f, 0f), 0.34f, 0.7f, 3.4f, -0.15f, 13, 0);
             hearts = MakeParticles(root, "Hearts", Look.Heart, new Color(1f, 0.5f, 0.62f, 1f), new Color(1f, 0.75f, 0.85f, 0f), 0.42f, 1.1f, 2.6f, -0.35f, 13, 0);
             trailSparks = MakeParticles(root, "Wheel Sparks", Look.Sparkle, new Color(1f, 0.9f, 0.6f, 1f), new Color(1f, 0.4f, 0.65f, 0f), 0.22f, 0.4f, 1.8f, 0.4f, 12, 0);
+            motes = MakeParticles(root, "Motes", Look.Sparkle, new Color(1f, 0.95f, 0.85f, 0.75f), new Color(1f, 0.8f, 0.9f, 0f), 0.16f, 4.5f, 0.12f, -0.01f, 7, 0);
+            var moteEmission = motes.emission;
+            moteEmission.enabled = true;
+            moteEmission.rateOverTime = 7;
+            var moteShape = motes.shape;
+            moteShape.shapeType = ParticleSystemShapeType.Box;
+            moteShape.scale = new Vector3(9f, 2.8f, 0.1f);
+            motes.transform.position = World(0, 70);
         }
 
         ParticleSystem MakeParticles(Transform root, string name, Texture texture, Color start, Color end, float size, float life, float speed, float gravity, int order, int rate)

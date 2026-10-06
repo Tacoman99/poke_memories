@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using PokeMemories.Menu;
 using UnityEngine;
 using UnityEngine.InputSystem;
 
@@ -35,6 +36,9 @@ namespace PokeMemories.Gameplay
         SpriteRenderer skaterSprite;
         GameFeel feel;
         VisualPolish polish;
+        MenuFlow menu;
+        RunReward? lastReward;
+        bool recorded;
         Transform ground;
         SpriteRenderer groundSprite;
         ParallaxBackground background;
@@ -49,7 +53,7 @@ namespace PokeMemories.Gameplay
         const float BailClipSeconds = 10f / 12f, LandClipSeconds = 6f / 12f;
 
         Rect[] trickButtons = new Rect[3];
-        Rect autoButton;
+        Rect autoButton, menuButton, bookButton;
         int autoTrick;
         static readonly Dictionary<TrickKind, string> TrickClips = new()
         {
@@ -92,6 +96,8 @@ namespace PokeMemories.Gameplay
             feel = gameObject.AddComponent<GameFeel>();
             feel.SetFollowOffset(skaterScreenOffset);
             polish = gameObject.AddComponent<VisualPolish>();
+            menu = gameObject.AddComponent<MenuFlow>();
+            menu.Init(this);
             Restart();
         }
 
@@ -106,16 +112,37 @@ namespace PokeMemories.Gameplay
             bailUntil = 0;
             landUntil = 0;
             started = false;
+            recorded = false;
+            lastReward = null;
             feel.Bind(sim, view, groundY, skaterSprite.sharedMaterial);
             polish.Bind(sim, view, skaterSprite.sharedMaterial, skater.transform);
             skater.transform.rotation = Quaternion.identity;
             skater.transform.localScale = Vector3.one;
         }
 
+        /// <summary>Starts a fresh run in the given mode (called by the menu).</summary>
+        public void BeginRun(PlayMode playMode)
+        {
+            mode = playMode;
+            endedAt = 0;
+            Restart();
+        }
+
+        /// <summary>Puts the course back at its idle start, for the menu backdrop.</summary>
+        public void ResetToStart()
+        {
+            endedAt = 0;
+            Restart();
+        }
+
         void Update()
         {
-            ReadInput();
-            if (started) sim.Advance(Time.deltaTime);
+            // The menu and memory book leave the course idle behind them.
+            if (menu.Screen == GameScreen.Playing)
+            {
+                ReadInput();
+                if (started) sim.Advance(Time.deltaTime);
+            }
             DrawSkater();
             DrawTrack();
         }
@@ -132,6 +159,7 @@ namespace PokeMemories.Gameplay
                 foreach (var (kind, _, key) in TrickInputs)
                     if (keyboard[key].wasPressedThisFrame) sim.StartTrick(kind);
                 if (keyboard.aKey.wasPressedThisFrame) autoPlay = !autoPlay;
+                if (keyboard.escapeKey.wasPressedThisFrame) { menu.ShowMenu(); return; }
             }
 
             // Touch: any finger outside the trick buttons is the jump; fingers on buttons do tricks.
@@ -140,7 +168,12 @@ namespace PokeMemories.Gameplay
                 foreach (var touch in Touchscreen.current.touches)
                 {
                     if (!touch.press.isPressed && !touch.press.wasReleasedThisFrame) continue;
-                    if (touch.press.wasPressedThisFrame && OnAutoButton(touch.position.ReadValue())) { autoPlay = !autoPlay; continue; }
+                    var uiButton = UiButtonAt(touch.position.ReadValue());
+                    if (uiButton != null)
+                    {
+                        if (touch.press.wasPressedThisFrame) { PressUiButton(uiButton.Value); if (menu.Screen != GameScreen.Playing) return; }
+                        continue;
+                    }
                     var trick = TrickAt(touch.position.ReadValue());
                     if (trick != null)
                     {
@@ -155,9 +188,10 @@ namespace PokeMemories.Gameplay
             {
                 var mouse = Mouse.current;
                 var trick = TrickAt(mouse.position.ReadValue());
-                if (OnAutoButton(mouse.position.ReadValue()))
+                var uiButton = UiButtonAt(mouse.position.ReadValue());
+                if (uiButton != null)
                 {
-                    if (mouse.leftButton.wasPressedThisFrame) autoPlay = !autoPlay;
+                    if (mouse.leftButton.wasPressedThisFrame) { PressUiButton(uiButton.Value); if (menu.Screen != GameScreen.Playing) return; }
                 }
                 else if (trick != null)
                 {
@@ -183,6 +217,12 @@ namespace PokeMemories.Gameplay
             }
             if (sim.Ended)
             {
+                if (!recorded)
+                {
+                    // Autopilot runs are demos and testing: they don't change saved progress.
+                    recorded = true;
+                    if (!autoPlay) lastReward = SaveStore.RecordRun(mode, sim.Collected, sim.Completed);
+                }
                 // Short pause so the jump that ended the run doesn't instantly restart it.
                 if (endedAt == 0) endedAt = Time.time;
                 var waited = Time.time - endedAt;
@@ -239,8 +279,26 @@ namespace PokeMemories.Gameplay
             }
         }
 
-        bool OnAutoButton(Vector2 screenPosition) =>
-            autoButton.Contains(new Vector2(screenPosition.x, Screen.height - screenPosition.y));
+        enum UiButton { Auto, Menu, Book }
+
+        UiButton? UiButtonAt(Vector2 screenPosition)
+        {
+            var guiPoint = new Vector2(screenPosition.x, Screen.height - screenPosition.y);
+            if (autoButton.Contains(guiPoint)) return UiButton.Auto;
+            if (menuButton.Contains(guiPoint)) return UiButton.Menu;
+            if (bookButton.Contains(guiPoint)) return UiButton.Book;
+            return null;
+        }
+
+        void PressUiButton(UiButton button)
+        {
+            switch (button)
+            {
+                case UiButton.Auto: autoPlay = !autoPlay; break;
+                case UiButton.Menu: menu.ShowMenu(); break;
+                case UiButton.Book: menu.OpenBook(); break;
+            }
+        }
 
         TrickKind? TrickAt(Vector2 screenPosition)
         {
@@ -416,6 +474,7 @@ namespace PokeMemories.Gameplay
 
         void OnGUI()
         {
+            if (menu.Screen != GameScreen.Playing) return;
             var scale = Screen.height / 720f;
             var label = new GUIStyle(GUI.skin.label) { fontSize = Mathf.RoundToInt(30 * scale), fontStyle = FontStyle.Bold };
             label.normal.textColor = new Color(0.75f, 0.1f, 0.4f);
@@ -437,6 +496,17 @@ namespace PokeMemories.Gameplay
                 ShadowLabel(new Rect(0, Screen.height * 0.25f, Screen.width, 60 * scale),
                     sim.Completed ? "Sunset Course cleared! ♡" : "Out of hearts", center);
                 ShadowLabel(new Rect(0, Screen.height * 0.25f + 60 * scale, Screen.width, 50 * scale), "Tap to skate again", center);
+                var small = new GUIStyle(center) { fontSize = Mathf.RoundToInt(24 * scale) };
+                if (lastReward is { Earned: > 0 } reward)
+                {
+                    ShadowLabel(new Rect(0, Screen.height * 0.25f + 110 * scale, Screen.width, 40 * scale),
+                        $"You unlocked {reward.Earned} new {(reward.Earned == 1 ? "memory" : "memories")} ♡", small);
+                    bookButton = new Rect((Screen.width - 280 * scale) / 2, Screen.height * 0.25f + 160 * scale, 280 * scale, 60 * scale);
+                    GUI.Box(bookButton, "Open Memory Book", new GUIStyle(GUI.skin.box) { fontSize = Mathf.RoundToInt(24 * scale), alignment = TextAnchor.MiddleCenter });
+                }
+                else if (lastReward != null && !SaveStore.AllUnlocked)
+                    ShadowLabel(new Rect(0, Screen.height * 0.25f + 110 * scale, Screen.width, 40 * scale),
+                        $"{SaveStore.BallsToNextMemory} more Pokeballs to your next memory", small);
             }
             else if (sim.FeedbackTime > 0)
                 ShadowLabel(new Rect(0, Screen.height * 0.18f, Screen.width, 60 * scale), sim.Feedback, center);
@@ -444,6 +514,9 @@ namespace PokeMemories.Gameplay
             var autoStyle = new GUIStyle(GUI.skin.box) { fontSize = Mathf.RoundToInt(22 * scale), alignment = TextAnchor.MiddleCenter };
             autoButton = new Rect(Screen.width - 170 * scale, 14 * scale, 150 * scale, 56 * scale);
             GUI.Box(autoButton, autoPlay ? "Auto: ON (A)" : "Auto: off (A)", autoStyle);
+            menuButton = new Rect(Screen.width - 340 * scale, 14 * scale, 150 * scale, 56 * scale);
+            GUI.Box(menuButton, "Menu (Esc)", autoStyle);
+            if (!sim.Ended || lastReward is not { Earned: > 0 }) bookButton = Rect.zero;
 
             var button = new GUIStyle(GUI.skin.box) { fontSize = Mathf.RoundToInt(24 * scale), alignment = TextAnchor.MiddleCenter };
             float w = 150 * scale, h = 90 * scale, gap = 14 * scale;

@@ -126,18 +126,20 @@ namespace PokeMemories.Menu
                 area = new Rect(page.x + mg, page.y + titleHeight, page.width - 2 * mg - (side == 0 ? gutter : 0), page.height - titleHeight - mg - footer);
             }
 
-            var cols = count == 1 ? 1 : count == 2 ? (area.width > area.height ? 2 : 1) : count <= 4 ? 2 : 3;
+            var cols = count == 1 ? 1 : count == 2 ? 2 : count <= 4 ? 2 : 3;
             var rows = Mathf.CeilToInt(count / (float)cols);
             float cw = area.width / cols, ch = area.height / rows;
             for (var i = 0; i < count; i++)
             {
                 var cell = new Rect(area.x + i % cols * cw, area.y + i / cols * ch, cw, ch);
-                var w = cw - 18 * s;
-                var h = ch - 18 * s;
-                // Keep frames photo-shaped instead of stretching to the cell.
-                if (w / h > 1.1f) w = h * 1.1f;
-                else if (w / h < 0.72f) h = w / 0.72f;
-                result.Add(new Photo2 { rect = new Rect(cell.center.x - w / 2, cell.center.y - h / 2, w, h), item = media[from + i], n = from + i });
+                var item = media[from + i];
+                // The frame takes the photo's own shape, so nothing is cropped.
+                var aspect = !item.IsVideo && photos.TryGetValue(item.url, out var loaded) ? (float)loaded.width / loaded.height : 0.75f;
+                float border = 7 * s, below = 21 * s;
+                float boxW = cw - 18 * s - 2 * border, boxH = ch - 18 * s - border - below;
+                float innerW = Mathf.Min(boxW, boxH * aspect), innerH = innerW / aspect;
+                float w = innerW + 2 * border, h = innerH + border + below;
+                result.Add(new Photo2 { rect = new Rect(cell.center.x - w / 2, cell.center.y - h / 2, w, h), item = item, n = from + i });
             }
             return result;
         }
@@ -215,7 +217,7 @@ namespace PokeMemories.Menu
                     var f = slotCopy.rect;
                     UIKit.Fill(new Rect(f.x + 3 * s, f.y + 5 * s, f.width, f.height), UIKit.WithAlpha(Color.black, 0.16f));
                     UIKit.Fill(f, Color.white);
-                    DrawMedia(new Rect(f.x + 7 * s, f.y + 7 * s, f.width - 14 * s, f.height - 14 * s - 14 * s), slotCopy.item);
+                    DrawMedia(new Rect(f.x + 7 * s, f.y + 7 * s, f.width - 14 * s, f.height - 28 * s), slotCopy.item);
                     UIKit.DrawTape(f, slotCopy.n + idx, s);
                 });
             }
@@ -291,7 +293,7 @@ namespace PokeMemories.Menu
                 return;
             }
             var texture = Photo(item);
-            if (texture != null) GUI.DrawTexture(rect, texture, ScaleMode.ScaleAndCrop);
+            if (texture != null) GUI.DrawTexture(rect, texture, ScaleMode.ScaleToFit);
             else UIKit.Label(rect, failed.Contains(item.url) ? "✕" : "…", 30 * s, UIKit.Rose300);
         }
 

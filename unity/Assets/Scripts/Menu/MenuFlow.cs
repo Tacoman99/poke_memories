@@ -5,7 +5,7 @@ using UnityEngine.InputSystem;
 
 namespace PokeMemories.Menu
 {
-    public enum GameScreen { Menu, Playing, Book }
+    public enum GameScreen { Menu, Playing, Book, Bowl }
 
     /// <summary>
     /// The screen state machine: main menu, a run in progress, and the memory book.
@@ -16,6 +16,7 @@ namespace PokeMemories.Menu
     {
         CourseGame game;
         MemoryBook book;
+        BowlGame bowl;
 
         public GameScreen Screen { get; private set; } = GameScreen.Menu;
         float menuTime;
@@ -25,10 +26,13 @@ namespace PokeMemories.Menu
             game = owner;
             book = gameObject.AddComponent<MemoryBook>();
             book.OnBack = ShowMenu;
+            bowl = gameObject.AddComponent<BowlGame>();
+            bowl.Init(owner, this);
         }
 
         public void ShowMenu()
         {
+            bowl.End();
             Screen = GameScreen.Menu;
             menuTime = 0;
             game.ResetToStart();
@@ -38,6 +42,12 @@ namespace PokeMemories.Menu
         {
             Screen = GameScreen.Playing;
             game.BeginRun(mode);
+        }
+
+        public void StartBowl()
+        {
+            Screen = GameScreen.Bowl;
+            bowl.Begin();
         }
 
         public void OpenBook(int newMemories = 0)
@@ -51,7 +61,7 @@ namespace PokeMemories.Menu
         static Rect Panel(float s)
         {
             var w = Mathf.Min(UnityEngine.Screen.width * 0.92f, 600 * s);
-            var h = 600 * s;
+            var h = 660 * s;
             return new Rect((UnityEngine.Screen.width - w) / 2, (UnityEngine.Screen.height - h) / 2, w, h);
         }
 
@@ -73,7 +83,8 @@ namespace PokeMemories.Menu
             var panel = Panel(s);
             if (UIInput.TapIn(Row(panel, s, 196, 68))) StartRun(PlayMode.Course);
             else if (UIInput.TapIn(Row(panel, s, 280, 58))) StartRun(PlayMode.Endless);
-            else if (UIInput.TapIn(Row(panel, s, 352, 58))) OpenBook();
+            else if (UIInput.TapIn(Row(panel, s, 346, 58))) StartBowl();
+            else if (UIInput.TapIn(Row(panel, s, 412, 58))) OpenBook();
         }
 
         void OnGUI()
@@ -146,18 +157,22 @@ namespace PokeMemories.Menu
 
             Stagger(0, () => UIKit.Button(Row(card, s, 196, 68), "Skate the Sunset Course", UIKit.Rose500, Color.white, 28 * s), s);
             Stagger(1, () => UIKit.Button(Row(card, s, 280, 58), "Endless skate", UIKit.Violet, Color.white, 24 * s), s);
-            Stagger(2, () => UIKit.Button(Row(card, s, 352, 58), $"My Memory Book ({save.unlockedMemoryIds.Count} / {MemoryPool.All.Count})", UIKit.Pink100, UIKit.Pink600, 22 * s), s);
+            Stagger(2, () => UIKit.Button(Row(card, s, 346, 58), "Rose Bowl", UIKit.Hex("#ec4899"), Color.white, 24 * s), s);
+            Stagger(3, () => UIKit.Button(Row(card, s, 412, 58), $"My Memory Book ({save.unlockedMemoryIds.Count} / {MemoryPool.All.Count})", UIKit.Pink100, UIKit.Pink600, 22 * s), s);
 
             var hint = SaveStore.AllUnlocked
                 ? "Every memory is in your book ♡"
                 : $"{SaveStore.BallsToNextMemory} more Pokeballs to your next memory";
             if (!save.courseCompleted) hint += "\nFinish the course once for a bonus memory";
-            UIKit.Label(new Rect(card.x + 24 * s, card.y + 424 * s, card.width - 48 * s, 56 * s), hint, 19 * s, UIKit.Rose400, TextAnchor.MiddleCenter, true, FontStyle.Normal);
+            UIKit.Label(new Rect(card.x + 24 * s, card.y + 484 * s, card.width - 48 * s, 56 * s), hint, 19 * s, UIKit.Rose400, TextAnchor.MiddleCenter, true, FontStyle.Normal);
             if (save.highScore > 0)
-                UIKit.Label(new Rect(card.x, card.y + 490 * s, card.width, 30 * s),
+                UIKit.Label(new Rect(card.x, card.y + 536 * s, card.width, 28 * s),
                     $"Best haul: {save.highScore}   ({save.totalCollected} Pokeballs collected)", 19 * s, UIKit.Rose500);
+            if (save.bowlBest > 0)
+                UIKit.Label(new Rect(card.x, card.y + 560 * s, card.width, 28 * s),
+                    $"Bowl best: {save.bowlBest}   ({(save.bowlTier > 0 ? BowlSimulation.Goals[save.bowlTier - 1].name + " medal" : "no medal yet")})", 19 * s, UIKit.Rose500);
 
-            UIKit.Label(new Rect(card.x + 24 * s, card.y + 530 * s, card.width - 48 * s, 50 * s),
+            UIKit.Label(new Rect(card.x + 24 * s, card.y + 596 * s, card.width - 48 * s, 50 * s),
                 "Tap or press Space to jump · hold for higher · J / K / L for tricks", 16 * s, UIKit.Rose300, TextAnchor.MiddleCenter, true, FontStyle.Normal);
 
             GUI.matrix = m;

@@ -19,7 +19,7 @@ namespace PokeMemories.Menu
 
         public static void Ensure()
         {
-            if (built) return;
+            if (built && Paper != null) return;
             built = true;
             Title = Resources.Load<Font>("Fonts/Pacifico-Regular");
             Hand = Resources.Load<Font>("Fonts/Kalam-Regular");

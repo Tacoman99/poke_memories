@@ -13,7 +13,16 @@ namespace PokeMemories.Menu
         public int highScore;
         public int totalCollected;
         public bool courseCompleted;
+        public int bowlBest;
+        public int bowlTier;
         public List<string> unlockedMemoryIds = new();
+    }
+
+    public readonly struct BowlReward
+    {
+        public readonly int Tier, Earned;
+        public readonly bool NewBest, NewMedal;
+        public BowlReward(int tier, int earned, bool newBest, bool newMedal) { Tier = tier; Earned = earned; NewBest = newBest; NewMedal = newMedal; }
     }
 
     public readonly struct RunReward
@@ -55,6 +64,27 @@ namespace PokeMemories.Menu
             save.totalCollected += collected;
             save.courseCompleted |= mode == PlayMode.Course && completed;
 
+            var unlocked = Unlock(save, earned);
+            Save();
+            return new RunReward(unlocked, newBest);
+        }
+
+        /// <summary>Bowl runs grant one memory per newly reached medal tier. Mirrors bowlRewards().</summary>
+        public static BowlReward RecordBowl(int score)
+        {
+            var save = Data;
+            var tier = BowlSimulation.GoalTier(score);
+            var earned = Mathf.Max(0, tier - save.bowlTier);
+            var newBest = score > save.bowlBest;
+            save.bowlBest = Mathf.Max(save.bowlBest, score);
+            save.bowlTier = Mathf.Max(save.bowlTier, tier);
+            var unlocked = Unlock(save, earned);
+            Save();
+            return new BowlReward(tier, unlocked, newBest, earned > 0);
+        }
+
+        static int Unlock(SaveData save, int earned)
+        {
             var locked = MemoryPool.All.Where(m => !save.unlockedMemoryIds.Contains(m.id)).ToList();
             var unlocked = 0;
             for (; unlocked < earned && locked.Count > 0; unlocked++)
@@ -63,8 +93,7 @@ namespace PokeMemories.Menu
                 save.unlockedMemoryIds.Add(locked[pick].id);
                 locked.RemoveAt(pick);
             }
-            Save();
-            return new RunReward(unlocked, newBest);
+            return unlocked;
         }
 
         static SaveData Load()
@@ -79,6 +108,8 @@ namespace PokeMemories.Menu
                     {
                         loaded.highScore = Mathf.Max(0, loaded.highScore);
                         loaded.totalCollected = Mathf.Max(0, loaded.totalCollected);
+                        loaded.bowlBest = Mathf.Max(0, loaded.bowlBest);
+                        loaded.bowlTier = Mathf.Clamp(loaded.bowlTier, 0, BowlSimulation.Goals.Length);
                         loaded.unlockedMemoryIds ??= new List<string>();
                         // Drop ids that left the pool and any duplicates.
                         var seen = new HashSet<string>();

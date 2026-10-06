@@ -120,6 +120,11 @@ namespace PokeMemories.Gameplay
             skater.transform.localScale = Vector3.one;
         }
 
+        // Shared with BowlGame, which borrows the skater, camera and backdrop art.
+        public Animator SkaterAnimator => skater;
+        public Camera View => view;
+        public TrackArtSet Art => art;
+
         /// <summary>Starts a fresh run in the given mode (called by the menu).</summary>
         public void BeginRun(PlayMode playMode)
         {

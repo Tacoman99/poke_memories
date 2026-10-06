@@ -493,6 +493,9 @@ namespace PokeMemories.Gameplay
             }
             else if (sim.Ended)
             {
+                // A soft plate keeps the result readable over the dark sunset backdrops.
+                var plateWidth = Mathf.Min(Screen.width * 0.9f, 700 * scale);
+                UIKit.Fill(new Rect((Screen.width - plateWidth) / 2, Screen.height * 0.25f - 14 * scale, plateWidth, 250 * scale), UIKit.WithAlpha(Color.white, 0.55f));
                 ShadowLabel(new Rect(0, Screen.height * 0.25f, Screen.width, 60 * scale),
                     sim.Completed ? "Sunset Course cleared! ♡" : "Out of hearts", center);
                 ShadowLabel(new Rect(0, Screen.height * 0.25f + 60 * scale, Screen.width, 50 * scale), "Tap to skate again", center);
@@ -502,7 +505,7 @@ namespace PokeMemories.Gameplay
                     ShadowLabel(new Rect(0, Screen.height * 0.25f + 110 * scale, Screen.width, 40 * scale),
                         $"You unlocked {reward.Earned} new {(reward.Earned == 1 ? "memory" : "memories")} ♡", small);
                     bookButton = new Rect((Screen.width - 280 * scale) / 2, Screen.height * 0.25f + 160 * scale, 280 * scale, 60 * scale);
-                    GUI.Box(bookButton, "Open Memory Book", new GUIStyle(GUI.skin.box) { fontSize = Mathf.RoundToInt(24 * scale), alignment = TextAnchor.MiddleCenter });
+                    UIKit.Button(bookButton, "Open Memory Book ♡", UIKit.Rose500, Color.white, 24 * scale);
                 }
                 else if (lastReward != null && !SaveStore.AllUnlocked)
                     ShadowLabel(new Rect(0, Screen.height * 0.25f + 110 * scale, Screen.width, 40 * scale),

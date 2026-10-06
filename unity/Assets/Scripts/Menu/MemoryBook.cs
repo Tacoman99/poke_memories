@@ -71,7 +71,7 @@ namespace PokeMemories.Menu
             header = 84 * s;
             cols = Mathf.Clamp(Mathf.FloorToInt((Screen.width - 2 * margin + gap) / (230 * s + gap)), 2, 5);
             cardW = (Screen.width - 2 * margin - gap * (cols - 1)) / cols;
-            cardH = pad + (cardW - 2 * pad) * 1.15f + 58 * s;
+            cardH = pad + (cardW - 2 * pad) * 1.15f + 72 * s;
         }
 
         int SlotCount => MemoryPool.All.Count;
@@ -390,9 +390,9 @@ namespace PokeMemories.Menu
                     UIKit.Fill(badge, UIKit.WithAlpha(Color.black, 0.5f));
                     UIKit.Label(badge, $"+{memory.media.Length}", 16 * s, Color.white);
                 }
-                UIKit.Label(new Rect(card.x + pad, photo.yMax + 2 * s, card.width - 2 * pad, 28 * s), memory.caption, 20 * s, UIKit.Rose700, TextAnchor.MiddleLeft, false);
+                UIKit.Label(new Rect(card.x + pad, photo.yMax + 2 * s, card.width - 2 * pad, 44 * s), memory.caption, 18 * s, UIKit.Rose700, TextAnchor.UpperLeft, true);
                 if (!string.IsNullOrEmpty(memory.date))
-                    UIKit.Label(new Rect(card.x + pad, photo.yMax + 26 * s, card.width - 2 * pad, 22 * s), memory.date, 15 * s, UIKit.Rose400, TextAnchor.MiddleLeft, false, FontStyle.Normal);
+                    UIKit.Label(new Rect(card.x + pad, photo.yMax + 46 * s, card.width - 2 * pad, 22 * s), memory.date, 15 * s, UIKit.Rose400, TextAnchor.MiddleLeft, false, FontStyle.Normal);
                 UIKit.DrawTape(card, index, s);
             });
         }

@@ -454,6 +454,7 @@ namespace PokeMemories.Gameplay
                     var along = end - start;
                     var angle = Mathf.Atan2(along.y, along.x) * Mathf.Rad2Deg;
                     Part(art.railBar, (start + end) / 2, along.magnitude + RailBarThickness, RailBarThickness, angle, 6);
+                    go.AddComponent<RailGlint>().Init(start, end);
                     foreach (var top in new[] { start + along * 0.08f, end - along * 0.08f })
                         Part(art.railPost, new Vector3(top.x, (top.y + groundY) / 2, 0), RailPostWidth, top.y - groundY);
                     if (item.Kind == ItemKind.Stairs)
@@ -554,9 +555,22 @@ namespace PokeMemories.Gameplay
             if (!started)
             {
                 var bob = Mathf.Sin(t * 2.4f) * 4 * scale;
-                                Message(new Rect(0, title + bob, Screen.width, 70 * scale), "Tap to start skating", 48 * scale, Look.Title);
+                Message(new Rect(0, title + bob, Screen.width, 70 * scale), "Tap to start skating", 48 * scale, Look.Title);
                 Message(new Rect(0, title + 66 * scale, Screen.width, 44 * scale),
                     "Tap = jump (hold for higher) · land on rails to grind · tricks in the air", 22 * scale);
+                // A heart that beats at the centre with ripples spreading from it, inviting a tap.
+                var centre = new Vector2(Screen.width / 2f, Screen.height * 0.5f);
+                for (var i = 0; i < 3; i++)
+                {
+                    var ph = Mathf.Repeat(t * 0.7f + i / 3f, 1f);
+                    var radius = Mathf.Lerp(26, 120, Look.EaseOutCubic(ph)) * scale;
+                    Look.RoundOutline(new Rect(centre.x - radius, centre.y - radius, radius * 2, radius * 2),
+                        UIKit.WithAlpha(UIKit.Hex("#fff3ec"), 0.8f * (1 - ph)), radius, 3 * scale);
+                }
+                var beat = 1f + 0.16f * Mathf.Pow(Mathf.Max(0, Mathf.Sin(t * 5f)), 3);
+                Look.Tex(new Rect(centre.x - 70 * scale, centre.y - 70 * scale, 140 * scale, 140 * scale), Look.Glow, UIKit.WithAlpha(UIKit.Hex("#ff6b8f"), 0.5f));
+                Look.HeartAt(centre, 56 * scale * beat, UIKit.Hex("#ff4d7a"));
+                Look.HeartAt(centre + new Vector2(-8, -10) * scale, 14 * scale * beat, UIKit.WithAlpha(Color.white, 0.5f));
             }
             else if (sim.Ended)
             {

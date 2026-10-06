@@ -21,7 +21,8 @@ namespace PokeMemories.Gameplay
         float groundY;
         Camera view;
         Transform skaterTransform;
-        SpriteRenderer contactShadow, groundSheen;
+        SpriteRenderer contactShadow, groundSheen, mist;
+        float intensityNow;
         Bloom bloom;
         Vignette vignette;
         ChromaticAberration aberration;
@@ -48,6 +49,14 @@ namespace PokeMemories.Gameplay
             groundSheen.sharedMaterial = spriteMaterial;
             groundSheen.color = new Color(1f, 0.85f, 0.7f, 0.28f);
             groundSheen.sortingOrder = 1;
+
+            // Low mist along the horizon, between the mid and near backdrop layers.
+            mist = new GameObject("Horizon Mist").AddComponent<SpriteRenderer>();
+            mist.transform.SetParent(transform, false);
+            mist.sprite = Look.GlowSprite;
+            mist.sharedMaterial = spriteMaterial;
+            mist.color = new Color(1f, 0.88f, 0.9f, 0.4f);
+            mist.sortingOrder = -175;
 
             var cameraData = camera.GetUniversalAdditionalCameraData();
             cameraData.renderPostProcessing = true;
@@ -130,8 +139,11 @@ namespace PokeMemories.Gameplay
             contactShadow.color = shadowColour;
             groundSheen.transform.position = new Vector3(view.transform.position.x, groundY - 0.08f, 0);
             groundSheen.transform.localScale = new Vector3(16f, 0.5f, 1);
+            mist.transform.position = new Vector3(view.transform.position.x, groundY + 0.9f, 0);
+            mist.transform.localScale = new Vector3(16f, 2.4f, 1);
             var fast = Mathf.InverseLerp(1.08f, CourseSimulation.MaxPace, sim.Pace);
             var intensity = Mathf.Clamp01(Mathf.Max(fast, sim.BoostPulse, sim.Rail != null ? 0.6f : 0));
+            intensityNow = intensity;
             trail.emitting = started && !sim.Ended && intensity > 0.05f;
             trail.widthMultiplier = 0.6f + intensity * 1.2f;
             trail.time = 0.2f + intensity * 0.3f;
@@ -163,10 +175,21 @@ namespace PokeMemories.Gameplay
                 var matrix = GUI.matrix;
                 GUIUtility.RotateAroundPivot(24, new Vector2(rect.center.x, 0));
                 var a = (0.09f + 0.04f * Mathf.Sin(t * 0.5f + i * 2f)) * (i == 1 ? 1.3f : 1f);
-                Look.FadeLeft(new Rect(rect.x, rect.y, rect.width / 2, rect.height), UIKit.WithAlpha(UIKit.Hex("#fff0c9"), a));
-                Look.FadeRight(new Rect(rect.center.x, rect.y, rect.width / 2, rect.height), UIKit.WithAlpha(UIKit.Hex("#fff0c9"), a));
+                // One soft ellipse stretched into a shaft: no centre seam like two gradient halves would leave.
+                Look.Tex(rect, Look.Glow, UIKit.WithAlpha(UIKit.Hex("#fff0c9"), a * 1.6f));
                 GUI.matrix = matrix;
             }
+            // Speed streaks at the edges of the screen when she is moving fast.
+            if (intensityNow > 0.15f)
+                for (var i = 0; i < 16; i++)
+                {
+                    var seed = i * 7.77f;
+                    var y = H * (0.12f + 0.62f * Mathf.Repeat(seed * 0.31f, 1f));
+                    var len = (140 + 120 * Mathf.Repeat(seed, 1f)) * k;
+                    var x = W - Mathf.Repeat(t * (900 + i * 60) * k + seed * 97f, W + len * 2) + len;
+                    var edge = Mathf.Abs(y / H - 0.43f) * 2f;
+                    Look.FadeRight(new Rect(x, y, len, 2f * k), UIKit.WithAlpha(Color.white, 0.38f * intensityNow * Mathf.Clamp01(edge + 0.2f)));
+                }
             Look.Tex(new Rect(-W * 0.1f, H * 0.35f, W * 1.2f, H * 0.9f), Look.Glow, UIKit.WithAlpha(UIKit.Hex("#ffb27a"), 0.12f));
 
             // Petals: two depth layers, near ones larger and quicker.
@@ -193,6 +216,36 @@ namespace PokeMemories.Gameplay
         void OnDestroy()
         {
             if (profile != null) Destroy(profile);
+        }
+    }
+
+    /// <summary>A glint that slides along a rail and flashes, so rails catch the eye.</summary>
+    public class RailGlint : MonoBehaviour
+    {
+        Vector3 a, b;
+        SpriteRenderer glint;
+        float phase;
+
+        public void Init(Vector3 start, Vector3 end)
+        {
+            a = start; b = end;
+            phase = Mathf.Repeat(start.x * 0.37f, 2f);
+            glint = new GameObject("Rail Glint").AddComponent<SpriteRenderer>();
+            glint.transform.SetParent(transform, false);
+            glint.sprite = Look.SparkleSprite;
+            glint.sortingOrder = 7;
+            glint.color = new Color(1f, 0.97f, 0.85f, 0f);
+        }
+
+        void Update()
+        {
+            var cycle = Mathf.Repeat(Time.time * 0.45f + phase, 2f);   // one sweep, then a pause
+            var f = Mathf.Clamp01(cycle);
+            var flash = cycle <= 1f ? Mathf.Sin(f * Mathf.PI) : 0f;
+            glint.transform.position = Vector3.Lerp(a, b, f) + Vector3.up * 0.08f;
+            glint.transform.localScale = Vector3.one * (0.5f + 1.8f * flash);
+            glint.transform.rotation = Quaternion.Euler(0, 0, f * 90f);
+            glint.color = new Color(1f, 0.97f, 0.85f, flash);
         }
     }
 

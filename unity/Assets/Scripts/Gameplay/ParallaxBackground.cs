@@ -17,6 +17,9 @@ namespace PokeMemories.Gameplay
         const int IncomingOrderOffset = 50; // draws the incoming set over the current one
         const float TileOverlap = 0.02f;    // world units; hides seams between tiles
         const int TilesPerLayer = 3;
+        // Atmospheric perspective: the farther the layer, the more it dissolves into a pale warm haze.
+        static readonly float[] Haze = { 0.38f, 0.2f, 0.04f };
+        static readonly Color HazeColour = new(1f, 0.9f, 0.88f);
 
         class Group
         {
@@ -118,7 +121,8 @@ namespace PokeMemories.Gameplay
                     var tile = group.tiles[l][t];
                     tile.transform.position = new Vector3(origin + (first + t - 1) * spacing, groundY + tileSize.y / 2, 0);
                     tile.sortingOrder = baseOrder + (l + 1) * LayerOrderStep;
-                    tile.color = colour;
+                    var hazed = Color.Lerp(Color.white, HazeColour, Haze[Mathf.Min(l, Haze.Length - 1)]);
+                    tile.color = new Color(hazed.r, hazed.g, hazed.b, alpha);
                 }
             }
         }

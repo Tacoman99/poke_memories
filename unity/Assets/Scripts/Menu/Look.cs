@@ -388,6 +388,18 @@ namespace PokeMemories.Menu
             Round(new Rect(r.x + r.width * 0.2f, r.y + r.height * 0.14f, r.width * 0.26f, r.height * 0.14f), UIKit.WithAlpha(Color.white, 0.55f), r.width);
         }
 
+        static Sprite sparkleSprite;
+
+        /// <summary>The four-point sparkle as a world sprite (0.64 units across at scale 1).</summary>
+        public static Sprite SparkleSprite
+        {
+            get
+            {
+                Ensure();
+                return sparkleSprite ??= Sprite.Create(Sparkle, new Rect(0, 0, Sparkle.width, Sparkle.height), new Vector2(0.5f, 0.5f), 100f);
+            }
+        }
+
         static Sprite glowSprite;
 
         /// <summary>The soft radial glow as a world sprite (1.28 units across at scale 1).</summary>

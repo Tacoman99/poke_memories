@@ -11,6 +11,8 @@ namespace PokeMemories.Menu
     public static class Look
     {
         public static Font Title, Hand, HandBold, Script;
+        /// <summary>True off the course (menu, book) so the in-run atmosphere layer stays hidden.</summary>
+        public static bool BookOpen = true;
         public static Texture2D GradH, Paper, Cloth, Shadow9, Glow, GradV, Felt, Vignette, Sparkle, Heart;
         public static Texture2D[] Washi;
 

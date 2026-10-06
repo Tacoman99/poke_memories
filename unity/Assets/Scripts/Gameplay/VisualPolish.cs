@@ -20,6 +20,7 @@ namespace PokeMemories.Gameplay
         VolumeProfile profile;
         Bloom bloom;
         Vignette vignette;
+        ChromaticAberration aberration;
 
         public void Bind(CourseSimulation simulation, Camera camera, Material spriteMaterial, Transform skater)
         {
@@ -59,6 +60,17 @@ namespace PokeMemories.Gameplay
             var grade = profile.Add<ColorAdjustments>();
             grade.saturation.Override(10f);
             grade.contrast.Override(6f);
+            grade.postExposure.Override(0.1f);
+            // Warm highlights and rosy shadows: a gentle golden-hour grade over the pastel art.
+            var lgg = profile.Add<LiftGammaGain>();
+            lgg.lift.Override(new Vector4(1.04f, 0.97f, 1.02f, -0.02f));
+            lgg.gain.Override(new Vector4(1.04f, 1.0f, 0.95f, 0.03f));
+            var grain = profile.Add<FilmGrain>();
+            grain.type.Override(FilmGrainLookup.Thin1);
+            grain.intensity.Override(0.16f);
+            grain.response.Override(0.85f);
+            aberration = profile.Add<ChromaticAberration>();
+            aberration.intensity.Override(0f);
             var volume = new GameObject("Post Volume").AddComponent<Volume>();
             volume.transform.SetParent(transform, false);
             volume.isGlobal = true;
@@ -94,6 +106,8 @@ namespace PokeMemories.Gameplay
             trail.time = 0.2f + intensity * 0.3f;
             skaterGlow.intensity = 0.3f + intensity * 0.5f + sim.BoostPulse * 0.3f;
             bloom.intensity.value = 0.45f + intensity * 0.35f + sim.BoostPulse * 0.25f;
+            aberration.intensity.value = Mathf.Lerp(aberration.intensity.value, sim.BoostPulse * 0.35f, 0.3f);
+            vignette.intensity.value = 0.2f + intensity * 0.1f;
         }
 
         float flow = 1;
@@ -104,7 +118,7 @@ namespace PokeMemories.Gameplay
         /// </summary>
         void OnGUI()
         {
-            if (Event.current.type != EventType.Repaint) return;
+            if (Event.current.type != EventType.Repaint || Look.BookOpen) return;
             Look.Ensure();
             float W = Screen.width, H = Screen.height, k = H / 720f, t = Time.time;
             var pace = sim != null ? sim.Pace : 1f;

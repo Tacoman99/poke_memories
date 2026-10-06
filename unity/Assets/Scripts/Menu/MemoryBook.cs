@@ -735,21 +735,13 @@ namespace PokeMemories.Menu
             var forward = turnTo > index;
             var a = index;
             var b = turnTo;
-            var spine = new Vector2(SpineX, book.center.y);
 
             if (spread)
             {
-                // The turning page folds about the spine: its front narrows to nothing, then its
-                // back widens on the other side.
+                // The resting pages under the sheet, then the sheet itself as a curled strip.
                 DrawPage(forward ? a : b, 0, leftPage);
                 DrawPage(forward ? b : a, 1, rightPage);
-                var firstHalf = t < 0.5f;
-                var width = Mathf.Max(0.001f, firstHalf ? 1 - 2 * t : 2 * t - 1);
-                int idx, side;
-                if (forward) { idx = firstHalf ? a : b; side = firstHalf ? 1 : 0; }
-                else { idx = firstHalf ? a : b; side = firstHalf ? 0 : 1; }
-                var page = side == 0 ? leftPage : rightPage;
-                Flip(width, spine, idx, side, page, t);
+                DrawCurl(Mathf.Min(a, b), Mathf.Max(a, b), forward, t);
             }
             else
             {
@@ -757,6 +749,131 @@ namespace PokeMemories.Menu
                 var width = Mathf.Max(0.001f, forward ? 1 - t : t);
                 Flip(width, new Vector2(book.x, book.center.y), forward ? a : b, -1, singlePage, t);
             }
+        }
+
+        // ───────────── Page curl ─────────────
+        // The turning sheet is drawn as a bent ribbon: both faces are rendered into full-screen
+        // textures, then sliced into thin vertical strips whose position, height and brightness
+        // follow a simulated curve (orthographic position, mild perspective, Lambert-style shading).
+
+        RenderTexture frontRT, backRT;
+        const int CurlStrips = 56;
+
+        RenderTexture PageTexture(ref RenderTexture rt)
+        {
+            if (rt == null || rt.width != Screen.width || rt.height != Screen.height)
+            {
+                if (rt != null) rt.Release();
+                rt = new RenderTexture(Screen.width, Screen.height, 0, RenderTextureFormat.ARGB32) { filterMode = FilterMode.Bilinear, useMipMap = false };
+                rt.Create();
+            }
+            return rt;
+        }
+
+        void RenderPage(RenderTexture rt, int idx, int side, Rect page)
+        {
+            var previous = RenderTexture.active;
+            RenderTexture.active = rt;
+            GL.Clear(true, true, new Color(0, 0, 0, 0));
+            DrawPage(idx, side, page);
+            RenderTexture.active = previous;
+        }
+
+        void DrawCurl(int lo, int hi, bool forward, float t)
+        {
+            var front = PageTexture(ref frontRT);
+            var back = PageTexture(ref backRT);
+            RenderPage(front, lo, 1, rightPage);
+            RenderPage(back, hi, 0, leftPage);
+
+            float W = Screen.width, H = Screen.height;
+            var pw = rightPage.width;
+            var spineX = SpineX;
+            var cy = book.center.y;
+            var dir = forward ? t : 1 - t;                 // 0 = sheet flat on the right, 1 = flat on the left
+            var theta = dir * Mathf.PI;
+            // The leading edge runs ahead of the spine, so the sheet bows; the bow eases off as it lands.
+            var bow = 1.5f * Mathf.Sin(theta) * (forward ? 1f - 1.1f * t : -(1f - 1.1f * (1 - t)));
+            var light = new Vector2(-0.45f, 0.9f).normalized;
+
+            var xs = new float[CurlStrips + 1];
+            var zs = new float[CurlStrips + 1];
+            var al = new float[CurlStrips];
+            float x = 0, z = 0;
+            var du = pw / CurlStrips;
+            for (var i = 0; i < CurlStrips; i++)
+            {
+                var u = (i + 0.5f) / CurlStrips;
+                var alpha = Mathf.Clamp(theta + bow * u, 0f, Mathf.PI);
+                al[i] = alpha;
+                xs[i] = x; zs[i] = z;
+                x += Mathf.Cos(alpha) * du;
+                z += Mathf.Sin(alpha) * du;
+            }
+            xs[CurlStrips] = x; zs[CurlStrips] = z;
+
+            var persp = 0.16f / pw;
+
+            // Shadow the lifted sheet throws on whatever lies beneath it: one soft band covering the
+            // shifted footprint of the raised part, darkest where the sheet is highest.
+            float sMin = float.MaxValue, sMax = float.MinValue, peak = 0;
+            for (var i = 0; i <= CurlStrips; i++)
+            {
+                if (zs[i] < 0.02f * pw) continue;
+                var sx = spineX + xs[i] + zs[i] * 0.45f;
+                sMin = Mathf.Min(sMin, sx); sMax = Mathf.Max(sMax, sx);
+                peak = Mathf.Max(peak, zs[i]);
+            }
+            if (sMax > sMin)
+            {
+                var k = Mathf.SmoothStep(0, 1, peak / (0.35f * pw));
+                var h = rightPage.height * 0.985f;
+                var band = new Rect(sMin, cy - h / 2 + 8 * s, sMax - sMin, h);
+                UIKit.Fill(band, UIKit.WithAlpha(Color.black, 0.2f * k));
+                var soft = 46 * s;
+                Look.FadeRight(new Rect(sMax, band.y, soft, band.height), UIKit.WithAlpha(Color.black, 0.2f * k));
+                Look.FadeLeft(new Rect(sMin - soft, band.y, soft, band.height), UIKit.WithAlpha(Color.black, 0.2f * k));
+            }
+            float page_h(float zz) => rightPage.height * (1 + persp * zz);
+
+            var old = GUI.color;
+            for (var i = 0; i < CurlStrips; i++)
+            {
+                var alpha = al[i];
+                var isFront = alpha < Mathf.PI / 2;
+                var tex = isFront ? front : back;
+                var u0 = i * du;
+                var u1 = (i + 1) * du;
+                float s0, s1;
+                if (isFront) { s0 = rightPage.x + u0; s1 = rightPage.x + u1; }
+                else { s0 = leftPage.xMax - u0; s1 = leftPage.xMax - u1; }
+                float sx0 = spineX + xs[i], sx1 = spineX + xs[i + 1];
+                if (sx1 < sx0) { (sx0, sx1) = (sx1, sx0); (s0, s1) = (s1, s0); }
+                var zmid = (zs[i] + zs[i + 1]) * 0.5f;
+                var h = page_h(zmid);
+                // Normal of the visible face and a simple diffuse + sheen term.
+                var n = isFront ? new Vector2(-Mathf.Sin(alpha), Mathf.Cos(alpha)) : new Vector2(Mathf.Sin(alpha), -Mathf.Cos(alpha));
+                var diffuse = Mathf.Clamp01(Vector2.Dot(n, light));
+                var shade = Mathf.Lerp(0.86f, 1f, diffuse);
+                var rect = new Rect(sx0 - 0.5f, cy - h / 2, sx1 - sx0 + 1f, h);
+                GUI.color = new Color(shade, shade, shade, 1);
+                GUI.DrawTextureWithTexCoords(rect, tex, UvFor(s0, s1, W, H, h));
+            }
+            GUI.color = old;
+
+            // A hairline of light along the top of the fold, where the paper catches the lamp.
+            var edgeX = spineX + xs[CurlStrips];
+            var eh = page_h(zs[CurlStrips]);
+            UIKit.Fill(new Rect(edgeX - 1, cy - eh / 2, 2, eh), UIKit.WithAlpha(Color.white, 0.25f * Mathf.Sin(theta)));
+        }
+
+        Rect UvFor(float s0, float s1, float W, float H, float drawnHeight)
+        {
+            // The page occupies the same vertical band in the texture as on screen; stretching the
+            // strip taller or shorter then gives the perspective for free.
+            var top = rightPage.y;
+            var bottom = rightPage.yMax;
+            return new Rect(s0 / W, 1 - bottom / H, (s1 - s0) / W, (bottom - top) / H);
         }
 
         void Flip(float widthScale, Vector2 pivot, int idx, int side, Rect page, float t)

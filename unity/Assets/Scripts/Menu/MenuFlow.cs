@@ -30,6 +30,7 @@ namespace PokeMemories.Menu
         public void ShowMenu()
         {
             Screen = GameScreen.Menu;
+            Look.BookOpen = true; // hides the in-run atmosphere layer
             menuTime = 0;
             game.ResetToStart();
         }
@@ -37,12 +38,14 @@ namespace PokeMemories.Menu
         public void StartRun(PlayMode mode)
         {
             Screen = GameScreen.Playing;
+            Look.BookOpen = false;
             game.BeginRun(mode);
         }
 
         public void OpenBook(int newMemories = 0)
         {
             Screen = GameScreen.Book;
+            Look.BookOpen = true;
             book.Open(newMemories);
         }
 
@@ -141,7 +144,7 @@ namespace PokeMemories.Menu
             var bob = Mathf.Sin(Time.unscaledTime * 2.2f) * 3 * s;
             Look.HeartAt(new Vector2(card.xMax - 70 * s, card.y + 72 * s + bob), 26 * s, UIKit.Rose400);
             Look.HeartAt(new Vector2(card.x + 62 * s, card.y + 118 * s - bob), 18 * s, UIKit.Rose300);
-            UIKit.Label(new Rect(card.x + 24 * s, card.y + 138 * s, card.width - 48 * s, 56 * s),
+            UIKit.Label(new Rect(card.x + 24 * s, card.y + 146 * s, card.width - 48 * s, 56 * s),
                 "Jump the obstacles. Land on rails.\nBring home memories.", 20 * s, UIKit.Rose500, TextAnchor.MiddleCenter, true, FontStyle.Normal);
 
             Stagger(0, () => UIKit.Button(Row(card, s, 196, 68), "Skate the Sunset Course", UIKit.Rose500, Color.white, 28 * s), s);

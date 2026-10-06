@@ -241,7 +241,11 @@ namespace PokeMemories.Gameplay
             scale.size = new ParticleSystem.MinMaxCurve(1, AnimationCurve.Linear(0, 1, 1, 0.2f));
 
             var renderer = go.GetComponent<ParticleSystemRenderer>();
-            renderer.sharedMaterial = particleMaterial;
+            // Round sparkle / soft puff textures instead of hard squares.
+            var material = new Material(particleMaterial) { mainTexture = name == "LandingDust" ? PokeMemories.Menu.Look.Glow : PokeMemories.Menu.Look.Sparkle };
+            PokeMemories.Menu.Look.Ensure();
+            material.mainTexture = name == "LandingDust" ? PokeMemories.Menu.Look.Glow : PokeMemories.Menu.Look.Sparkle;
+            renderer.sharedMaterial = material;
             renderer.sortingOrder = order;
             ps.Play();
             return ps;

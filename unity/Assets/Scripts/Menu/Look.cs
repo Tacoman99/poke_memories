@@ -11,6 +11,8 @@ namespace PokeMemories.Menu
     public static class Look
     {
         public static Font Title, Hand, HandBold, Script;
+        /// <summary>True off the course (menu, book) so the in-run atmosphere layer stays hidden.</summary>
+        public static bool BookOpen = true;
         public static Texture2D GradH, Paper, Cloth, Shadow9, Glow, GradV, Felt, Vignette, Sparkle, Heart;
         public static Texture2D[] Washi;
 
@@ -384,6 +386,18 @@ namespace PokeMemories.Menu
             Round(new Rect(r.center.x - r.width * 0.17f, r.center.y - r.width * 0.17f, r.width * 0.34f, r.width * 0.34f), ink, r.width);
             Round(new Rect(r.center.x - r.width * 0.1f, r.center.y - r.width * 0.1f, r.width * 0.2f, r.width * 0.2f), Color.white, r.width);
             Round(new Rect(r.x + r.width * 0.2f, r.y + r.height * 0.14f, r.width * 0.26f, r.height * 0.14f), UIKit.WithAlpha(Color.white, 0.55f), r.width);
+        }
+
+        static Sprite glowSprite;
+
+        /// <summary>The soft radial glow as a world sprite (1.28 units across at scale 1).</summary>
+        public static Sprite GlowSprite
+        {
+            get
+            {
+                Ensure();
+                return glowSprite ??= Sprite.Create(Glow, new Rect(0, 0, Glow.width, Glow.height), new Vector2(0.5f, 0.5f), 100f);
+            }
         }
 
         public static void HeartAt(Vector2 centre, float size, Color colour) =>

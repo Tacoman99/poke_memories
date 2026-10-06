@@ -369,6 +369,23 @@ namespace PokeMemories.Menu
             GUI.color = old;
         }
 
+        /// <summary>A small flat pokeball icon, drawn from rounded shapes.</summary>
+        public static void Ball(Rect r)
+        {
+            var ink = UIKit.Ink;
+            Round(new Rect(r.x - 1.5f, r.y - 1.5f, r.width + 3, r.height + 3), ink, r.width);
+            GUI.BeginClip(new Rect(r.x, r.y, r.width, r.height / 2));
+            Round(new Rect(0, 0, r.width, r.height), UIKit.Rose600, r.width);
+            GUI.EndClip();
+            GUI.BeginClip(new Rect(r.x, r.y + r.height / 2, r.width, r.height / 2));
+            Round(new Rect(0, -r.height / 2, r.width, r.height), Color.white, r.width);
+            GUI.EndClip();
+            UIKit.Fill(new Rect(r.x, r.center.y - r.height * 0.07f, r.width, r.height * 0.14f), ink);
+            Round(new Rect(r.center.x - r.width * 0.17f, r.center.y - r.width * 0.17f, r.width * 0.34f, r.width * 0.34f), ink, r.width);
+            Round(new Rect(r.center.x - r.width * 0.1f, r.center.y - r.width * 0.1f, r.width * 0.2f, r.width * 0.2f), Color.white, r.width);
+            Round(new Rect(r.x + r.width * 0.2f, r.y + r.height * 0.14f, r.width * 0.26f, r.height * 0.14f), UIKit.WithAlpha(Color.white, 0.55f), r.width);
+        }
+
         public static void HeartAt(Vector2 centre, float size, Color colour) =>
             Tex(new Rect(centre.x - size / 2, centre.y - size / 2, size, size), Heart, colour);
 

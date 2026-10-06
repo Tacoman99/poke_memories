@@ -462,72 +462,155 @@ namespace PokeMemories.Gameplay
         }
 
         // Cream drop shadow keeps the HUD readable over both the pale and the dark backgrounds.
-        static void ShadowLabel(Rect rect, string text, GUIStyle style)
+        static void ShadowLabel(Rect rect, string text, float size, Color colour, Font font = null, TextAnchor anchor = TextAnchor.MiddleCenter) =>
+            UIKit.ShadowLabel(rect, text, size, colour, UIKit.WithAlpha(UIKit.Hex("#5a0a22"), 0.55f), Mathf.Max(1.5f, size / 16f), anchor, false, FontStyle.Bold, font);
+
+        // Big centre-screen messages: deep rose letters with a cream halo read on every backdrop.
+        static void Message(Rect rect, string text, float size, Font font = null) =>
+            UIKit.ShadowLabel(rect, text, size, UIKit.Hex("#be123c"), UIKit.WithAlpha(UIKit.Hex("#fff3ec"), 0.95f), Mathf.Max(2f, size / 12f), TextAnchor.MiddleCenter, false, FontStyle.Bold, font);
+
+        static readonly Color Cream = new(1f, 0.96f, 0.93f);
+
+        /// <summary>A frosted rose capsule that holds HUD readouts.</summary>
+        static void Glass(Rect r, float alpha = 0.5f)
         {
-            var colour = style.normal.textColor;
-            style.normal.textColor = new Color(1f, 0.96f, 0.93f);
-            var offset = Mathf.Max(1f, style.fontSize / 14f);
-            GUI.Label(new Rect(rect.x + offset, rect.y + offset, rect.width, rect.height), text, style);
-            style.normal.textColor = colour;
-            GUI.Label(rect, text, style);
+            Look.Shadow(r, 8 * (r.height / 56f), 0.25f, new Vector2(0, 4));
+            Look.Round(r, UIKit.WithAlpha(UIKit.Hex("#6b1233"), alpha), r.height / 2);
+            Look.Round(new Rect(r.x + r.height * 0.25f, r.y + 2, r.width - r.height * 0.5f, r.height * 0.42f), UIKit.WithAlpha(Color.white, 0.12f), r.height * 0.21f);
+            Look.RoundOutline(r, UIKit.WithAlpha(Color.white, 0.35f), r.height / 2, 1.5f);
         }
+
+        /// <summary>A round glass button that dips when pressed; the rect doubles as its touch target.</summary>
+        static void GlassButton(Rect r, string text, float size, bool on, string key)
+        {
+            var over = r.Contains(UIInput.Position);
+            var down = over && UIInput.Pressed;
+            var press = Look.Spring("g" + key, down ? 1 : 0, 30);
+            var rect = new Rect(r.x + r.width * 0.02f * press, r.y + r.height * 0.02f * press, r.width * (1 - 0.04f * press), r.height * (1 - 0.04f * press));
+            Look.Shadow(rect, 8, 0.25f, new Vector2(0, 4 - press * 2));
+            Look.Round(rect, UIKit.WithAlpha(on ? UIKit.Hex("#f43f5e") : UIKit.Hex("#6b1233"), on ? 0.85f : 0.5f + press * 0.2f), rect.height * 0.5f);
+            Look.Round(new Rect(rect.x + rect.height * 0.2f, rect.y + 2, rect.width - rect.height * 0.4f, rect.height * 0.42f), UIKit.WithAlpha(Color.white, 0.14f), rect.height * 0.21f);
+            Look.RoundOutline(rect, UIKit.WithAlpha(Color.white, 0.4f), rect.height * 0.5f, 1.5f);
+            UIKit.Label(rect, text, size, Cream);
+        }
+
+        float resultTime;
 
         void OnGUI()
         {
             if (menu.Screen != GameScreen.Playing) return;
+            Look.Ensure();
+            if (!sim.Ended) resultTime = 0;
+            if (Event.current.type != EventType.Repaint) return;
             var scale = Screen.height / 720f;
-            var label = new GUIStyle(GUI.skin.label) { fontSize = Mathf.RoundToInt(30 * scale), fontStyle = FontStyle.Bold };
-            label.normal.textColor = new Color(0.75f, 0.1f, 0.4f);
+            var t = Time.unscaledTime;
 
-            var hearts = new string('♥', Mathf.Max(0, sim.Hearts)) + new string('♡', 3 - Mathf.Max(0, sim.Hearts));
-            var progress = mode == PlayMode.Course ? $"   {Mathf.RoundToInt(sim.Distance / CourseSimulation.CourseLength * 100)}%" : "";
-            ShadowLabel(new Rect(20 * scale, 14 * scale, Screen.width, 50 * scale),
-                $"{hearts}   ◓ {sim.Collected}   ★ {Mathf.RoundToInt(sim.TrickScore)}{progress}", label);
+            // Top-left readouts: hearts, pokeballs, trick score, and the course progress bar.
+            var hud = new Rect(16 * scale, 14 * scale, (mode == PlayMode.Course ? 400 : 330) * scale, 56 * scale);
+            Glass(hud);
+            for (var i = 0; i < 3; i++)
+            {
+                var full = i < sim.Hearts;
+                var c = new Vector2(hud.x + (28 + i * 34) * scale, hud.center.y);
+                if (full) Look.Tex(new Rect(c.x - 18 * scale, c.y - 15 * scale, 36 * scale, 36 * scale), Look.Glow, UIKit.WithAlpha(UIKit.Hex("#ff6b8f"), 0.35f));
+                Look.HeartAt(c, 26 * scale, full ? UIKit.Hex("#ff5c82") : UIKit.WithAlpha(Cream, 0.25f));
+            }
+            var ball = new Rect(hud.x + 126 * scale, hud.y + 13 * scale, 30 * scale, 30 * scale);
+            Look.Ball(ball);
+            UIKit.Label(new Rect(ball.xMax + 6 * scale, hud.y, 56 * scale, hud.height), $"{sim.Collected}", 28 * scale, Cream, TextAnchor.MiddleLeft);
+            var star = new Rect(hud.x + 232 * scale, hud.y + 14 * scale, 28 * scale, 28 * scale);
+            Look.Tex(star, Look.Sparkle, UIKit.Hex("#ffd36b"));
+            UIKit.Label(new Rect(star.xMax + 6 * scale, hud.y, 80 * scale, hud.height), $"{Mathf.RoundToInt(sim.TrickScore)}", 28 * scale, Cream, TextAnchor.MiddleLeft);
+            if (mode == PlayMode.Course)
+            {
+                var pct = Mathf.Clamp01(sim.Distance / CourseSimulation.CourseLength);
+                var bar = new Rect(hud.x + 20 * scale, hud.yMax + 10 * scale, hud.width - 40 * scale, 12 * scale);
+                Look.Shadow(bar, 4 * scale, 0.25f, new Vector2(0, 2));
+                Look.Round(bar, UIKit.WithAlpha(UIKit.Hex("#6b1233"), 0.55f), bar.height / 2);
+                if (pct > 0.01f)
+                {
+                    var fill = new Rect(bar.x, bar.y, Mathf.Max(bar.height, bar.width * pct), bar.height);
+                    Look.Round(fill, UIKit.Hex("#ff7f9c"), bar.height / 2);
+                    Look.Round(new Rect(fill.x + 3, fill.y + 1.5f, fill.width - 6, bar.height * 0.35f), UIKit.WithAlpha(Color.white, 0.4f), bar.height * 0.17f);
+                }
+                Look.HeartAt(new Vector2(bar.x + Mathf.Max(bar.height / 2, bar.width * pct), bar.center.y), 22 * scale, Cream);
+                UIKit.Label(new Rect(bar.xMax - 60 * scale, bar.yMax + 2 * scale, 60 * scale, 22 * scale), $"{Mathf.RoundToInt(pct * 100)}%", 16 * scale, Cream, TextAnchor.MiddleRight);
+            }
 
-            var center = new GUIStyle(label) { alignment = TextAnchor.MiddleCenter, fontSize = Mathf.RoundToInt(34 * scale) };
+            var title = Screen.height * 0.2f;
             if (!started)
             {
-                ShadowLabel(new Rect(0, Screen.height * 0.22f, Screen.width, 60 * scale), "Tap to start skating ♡", center);
-                ShadowLabel(new Rect(0, Screen.height * 0.22f + 55 * scale, Screen.width, 50 * scale),
-                    "Tap = jump (hold for higher) · land on rails to grind · tricks in the air", new GUIStyle(center) { fontSize = Mathf.RoundToInt(22 * scale) });
+                var bob = Mathf.Sin(t * 2.4f) * 4 * scale;
+                                Message(new Rect(0, title + bob, Screen.width, 70 * scale), "Tap to start skating", 48 * scale, Look.Title);
+                Message(new Rect(0, title + 66 * scale, Screen.width, 44 * scale),
+                    "Tap = jump (hold for higher) · land on rails to grind · tricks in the air", 22 * scale);
             }
             else if (sim.Ended)
             {
-                // A soft plate keeps the result readable over the dark sunset backdrops.
-                var plateWidth = Mathf.Min(Screen.width * 0.9f, 700 * scale);
-                UIKit.Fill(new Rect((Screen.width - plateWidth) / 2, Screen.height * 0.25f - 14 * scale, plateWidth, 250 * scale), UIKit.WithAlpha(Color.white, 0.55f));
-                ShadowLabel(new Rect(0, Screen.height * 0.25f, Screen.width, 60 * scale),
-                    sim.Completed ? "Sunset Course cleared! ♡" : "Out of hearts", center);
-                ShadowLabel(new Rect(0, Screen.height * 0.25f + 60 * scale, Screen.width, 50 * scale), "Tap to skate again", center);
-                var small = new GUIStyle(center) { fontSize = Mathf.RoundToInt(24 * scale) };
-                if (lastReward is { Earned: > 0 } reward)
-                {
-                    ShadowLabel(new Rect(0, Screen.height * 0.25f + 110 * scale, Screen.width, 40 * scale),
-                        $"You unlocked {reward.Earned} new {(reward.Earned == 1 ? "memory" : "memories")} ♡", small);
-                    bookButton = new Rect((Screen.width - 280 * scale) / 2, Screen.height * 0.25f + 160 * scale, 280 * scale, 60 * scale);
-                    UIKit.Button(bookButton, "Open Memory Book ♡", UIKit.Rose500, Color.white, 24 * scale);
-                }
-                else if (lastReward != null && !SaveStore.AllUnlocked)
-                    ShadowLabel(new Rect(0, Screen.height * 0.25f + 110 * scale, Screen.width, 40 * scale),
-                        $"{SaveStore.BallsToNextMemory} more Pokeballs to your next memory", small);
+                DrawResult(scale, t);
             }
             else if (sim.FeedbackTime > 0)
-                ShadowLabel(new Rect(0, Screen.height * 0.18f, Screen.width, 60 * scale), sim.Feedback, center);
+            {
+                var pop = Look.EaseOutBack(1 - Mathf.Clamp01(sim.FeedbackTime / 1.0f) + 0.35f);
+                var m = GUI.matrix;
+                GUIUtility.ScaleAroundPivot(Vector2.one * Mathf.Lerp(0.85f, 1f, Mathf.Clamp01(pop)), new Vector2(Screen.width / 2f, Screen.height * 0.18f + 30 * scale));
+                Message(new Rect(0, Screen.height * 0.18f, Screen.width, 64 * scale), sim.Feedback, 44 * scale, Look.Title);
+                GUI.matrix = m;
+            }
 
-            var autoStyle = new GUIStyle(GUI.skin.box) { fontSize = Mathf.RoundToInt(22 * scale), alignment = TextAnchor.MiddleCenter };
             autoButton = new Rect(Screen.width - 170 * scale, 14 * scale, 150 * scale, 56 * scale);
-            GUI.Box(autoButton, autoPlay ? "Auto: ON (A)" : "Auto: off (A)", autoStyle);
             menuButton = new Rect(Screen.width - 340 * scale, 14 * scale, 150 * scale, 56 * scale);
-            GUI.Box(menuButton, "Menu (Esc)", autoStyle);
+            GlassButton(autoButton, autoPlay ? "Auto: ON (A)" : "Auto: off (A)", 20 * scale, autoPlay, "auto");
+            GlassButton(menuButton, "Menu (Esc)", 20 * scale, false, "menu");
             if (!sim.Ended || lastReward is not { Earned: > 0 }) bookButton = Rect.zero;
 
-            var button = new GUIStyle(GUI.skin.box) { fontSize = Mathf.RoundToInt(24 * scale), alignment = TextAnchor.MiddleCenter };
             float w = 150 * scale, h = 90 * scale, gap = 14 * scale;
             for (var i = 0; i < TrickInputs.Length; i++)
             {
                 trickButtons[i] = new Rect(Screen.width - (w + gap) * (TrickInputs.Length - i), Screen.height - h - gap, w, h);
-                GUI.Box(trickButtons[i], TrickInputs[i].label, button);
+                GlassButton(trickButtons[i], TrickInputs[i].label, 24 * scale, false, "t" + i);
             }
+        }
+
+        // The run-end card: a taped sheet of paper with the result, rewards and a way into the book.
+        void DrawResult(float scale, float t)
+        {
+            var enter = Look.EaseOutBack(resultTime / 0.5f);
+            resultTime += Time.unscaledDeltaTime;
+            var w = Mathf.Min(Screen.width * 0.9f, 640 * scale);
+            var h = (lastReward is { Earned: > 0 } ? 320 : 200) * scale;
+            var card = new Rect((Screen.width - w) / 2, Screen.height * 0.25f - 14 * scale + (1 - enter) * 40 * scale, w, h);
+            var old = GUI.color;
+            GUI.color = new Color(1, 1, 1, Mathf.Clamp01(resultTime / 0.2f));
+            var m = GUI.matrix;
+            GUIUtility.ScaleAroundPivot(Vector2.one * (0.94f + 0.06f * Mathf.Clamp01(enter)), card.center);
+            UIKit.Rotated(-0.8f, card, () =>
+            {
+                Look.Shadow(card, 26 * scale, 0.4f, new Vector2(0, 14 * scale));
+                Look.Round(card, UIKit.Hex("#fffaf4"), 18 * scale);
+                GUI.BeginClip(card);
+                Look.Tiled(new Rect(0, 0, card.width, card.height), Look.Paper, 400 * scale, UIKit.Hex("#fff3ec"));
+                Look.FadeDown(new Rect(0, 0, card.width, 90 * scale), UIKit.WithAlpha(UIKit.Hex("#fda4af"), 0.25f));
+                GUI.EndClip();
+                Look.RoundOutline(new Rect(card.x + 10 * scale, card.y + 10 * scale, card.width - 20 * scale, card.height - 20 * scale), UIKit.WithAlpha(UIKit.Rose300, 0.55f), 12 * scale, 1.5f * scale);
+                UIKit.DrawTape(new Rect(card.center.x - 38 * scale, card.y + 10 * scale, 76 * scale, 1), sim.Completed ? 1 : 4, scale * 1.3f);
+                UIKit.Label(new Rect(card.x, card.y + 24 * scale, card.width, 80 * scale), sim.Completed ? "Sunset Course cleared!" : "Out of hearts", 44 * scale, UIKit.Rose600, TextAnchor.MiddleCenter, false, FontStyle.Normal, Look.Title);
+                if (sim.Completed) Look.HeartAt(new Vector2(card.xMax - 56 * scale, card.y + 52 * scale + Mathf.Sin(t * 2.5f) * 3 * scale), 28 * scale, UIKit.Rose400);
+                UIKit.Label(new Rect(card.x, card.y + 100 * scale, card.width, 40 * scale), "Tap to skate again", 26 * scale, UIKit.Rose500);
+                var small = 24 * scale;
+                if (lastReward is { Earned: > 0 } reward)
+                {
+                    UIKit.Label(new Rect(card.x, card.y + 148 * scale, card.width, 40 * scale),
+                        $"You unlocked {reward.Earned} new {(reward.Earned == 1 ? "memory" : "memories")} ♡", small, UIKit.Rose600);
+                    bookButton = new Rect((Screen.width - 300 * scale) / 2, card.y + 206 * scale, 300 * scale, 64 * scale);
+                }
+                else if (lastReward != null && !SaveStore.AllUnlocked)
+                    UIKit.Label(new Rect(card.x, card.y + 148 * scale, card.width, 40 * scale),
+                        $"{SaveStore.BallsToNextMemory} more Pokeballs to your next memory", small, UIKit.Rose400);
+            });
+            if (lastReward is { Earned: > 0 }) UIKit.Button(bookButton, "Open Memory Book ♡", UIKit.Rose500, Color.white, 24 * scale);
+            GUI.matrix = m;
+            GUI.color = old;
         }
     }
 }

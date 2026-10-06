@@ -6,6 +6,9 @@ EditorBuildSettings:
   serializedVersion: 2
   m_Scenes:
   - enabled: 1
+    path: Assets/Scenes/Course.unity
+    guid: 5190445059512c7448e1cf2caa4954b4
+  - enabled: 1
     path: Assets/Scenes/SkaterPreview.unity
     guid: cde9942064a2a37449e5808fcddd755c
   m_configObjects:

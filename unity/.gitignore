@@ -21,3 +21,4 @@
 *.app
 sysinfo.txt
 crashlytics-build.properties
+/Builds/

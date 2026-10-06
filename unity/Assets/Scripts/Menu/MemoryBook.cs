@@ -144,18 +144,22 @@ namespace PokeMemories.Menu
             return result;
         }
 
-        void Paper(Rect r, int side, Color colour)
+        static readonly Color PaperTint = new(1f, 0.975f, 0.95f), BlushTint = new(1f, 0.9f, 0.92f), Gold = new(0.96f, 0.76f, 0.42f);
+
+        void Paper(Rect r, int side, Color tint)
         {
-            UIKit.Fill(r, colour);
-            // Shading near the spine, as the page curves into the gutter.
-            if (side == -1 && spread) return;
-            const int steps = 8;
-            var width = 30 * s;
-            for (var i = 0; i < steps; i++)
-            {
-                var x = side == 0 ? r.xMax - width * (i + 1) / steps : r.x + width * i / steps;
-                UIKit.Fill(new Rect(x, r.y, width / steps + 1, r.height), UIKit.WithAlpha(Color.black, 0.09f * (1 - i / (float)steps)));
-            }
+            Look.Tex(r, Look.Paper, tint);
+            // Light falls off toward the outer edges, and the sheet curves down into the gutter.
+            var edge = 40 * s;
+            var warm = UIKit.WithAlpha(UIKit.Hex("#7a4b3a"), 0.10f);
+            if (side == 0) Look.FadeRight(new Rect(r.x, r.y, edge, r.height), warm);
+            if (side == 1) Look.FadeLeft(new Rect(r.xMax - edge, r.y, edge, r.height), warm);
+            var gutter = UIKit.WithAlpha(UIKit.Hex("#4a2020"), 0.55f);
+            if (spread && side == 0) Look.FadeLeft(new Rect(r.xMax - 84 * s, r.y, 84 * s, r.height), gutter);
+            if (spread && side == 1) Look.FadeRight(new Rect(r.x, r.y, 84 * s, r.height), gutter);
+            if (!spread) Look.FadeRight(new Rect(r.x, r.y, 36 * s, r.height), UIKit.WithAlpha(UIKit.Hex("#5a2d2d"), 0.25f));
+            Look.FadeDown(new Rect(r.x, r.y, r.width, 26 * s), UIKit.WithAlpha(UIKit.Hex("#7a4b3a"), 0.06f));
+            Look.FadeUp(new Rect(r.x, r.yMax - 26 * s, r.width, 26 * s), UIKit.WithAlpha(UIKit.Hex("#7a4b3a"), 0.08f));
         }
 
         void DrawPage(int idx, int side, Rect r)
@@ -163,25 +167,41 @@ namespace PokeMemories.Menu
             var slot = idx - 1;
             if (idx == 0)
             {
-                if (side == 0) UIKit.Fill(r, UIKit.Hex("#8a1038"));
+                if (side == 0) DrawEndpaper(r);
                 else DrawCover(r);
             }
             else if (idx == N + 1)
             {
-                if (side == 1) { Paper(r, 1, UIKit.Paper); DrawDoodles(r, idx); }
+                if (side == 1) { Paper(r, 1, PaperTint); DrawDoodles(r, idx); }
                 else DrawEnd(r, side);
             }
             else if (slot >= unlocked.Count)
             {
-                if (side == 1) { Paper(r, 1, UIKit.Pink100); DrawDoodles(r, idx); }
+                if (side == 1) { Paper(r, 1, BlushTint); DrawDoodles(r, idx); }
                 else DrawLocked(r, side, slot);
             }
             else DrawMemory(r, side, idx, unlocked[slot]);
         }
 
+        /// <summary>The patterned paper glued inside the front cover.</summary>
+        void DrawEndpaper(Rect r)
+        {
+            Look.Tex(r, Look.Paper, UIKit.Hex("#f6b8c4"));
+            var step = 34 * s;
+            for (var y = 0; y < Mathf.CeilToInt(r.height / step) + 1; y++)
+                for (var x = 0; x < Mathf.CeilToInt(r.width / step) + 1; x++)
+                {
+                    var c = new Vector2(r.x + x * step + (y % 2) * step / 2, r.y + y * step);
+                    if (!r.Contains(c)) continue;
+                    Look.HeartAt(c, 14 * s, UIKit.WithAlpha(Color.white, 0.32f));
+                }
+            Look.FadeLeft(new Rect(r.xMax - 84 * s, r.y, 84 * s, r.height), UIKit.WithAlpha(UIKit.Hex("#4a2020"), 0.55f));
+            Look.FadeDown(new Rect(r.x, r.y, r.width, 30 * s), UIKit.WithAlpha(UIKit.Hex("#7a4b3a"), 0.12f));
+        }
+
         void DrawMemory(Rect r, int side, int idx, Memory memory)
         {
-            Paper(r, side, UIKit.Paper);
+            Paper(r, side, PaperTint);
             if (side != 1)
             {
                 var hasPhotos = side == -1 || memory.media.Length / 2 > 0;
@@ -189,22 +209,25 @@ namespace PokeMemories.Menu
                 var box = hasPhotos
                     ? new Rect(r.x + 26 * s, r.y + 14 * s, r.width - 52 * s, titleHeight - 16 * s)
                     : new Rect(r.x + 26 * s, r.y + r.height * 0.3f, r.width - 52 * s, r.height * 0.4f);
-                UIKit.Label(new Rect(box.x, box.y, box.width, 22 * s), $"MEMORY {idx} OF {N}", 14 * s, UIKit.Rose400);
-                UIKit.Label(new Rect(box.x, box.y + 22 * s, box.width, box.height - 22 * s - (string.IsNullOrEmpty(memory.date) ? 0 : 30 * s)),
-                    memory.caption, hasPhotos ? 32 * s : 38 * s, UIKit.Rose700);
+                UIKit.Label(new Rect(box.x, box.y, box.width, 22 * s), $"memory {idx} of {N}", 17 * s, UIKit.Rose400, TextAnchor.MiddleCenter, true, FontStyle.Normal);
+                var capSize = hasPhotos ? 34 * s : 40 * s;
+                var capRect = new Rect(box.x, box.y + 20 * s, box.width, box.height - 20 * s - (string.IsNullOrEmpty(memory.date) ? 0 : 32 * s));
+                UIKit.Label(capRect, memory.caption, capSize, UIKit.Rose700, TextAnchor.MiddleCenter, true, FontStyle.Normal, Look.Title);
                 if (!string.IsNullOrEmpty(memory.date))
                 {
-                    var chip = new Rect(box.center.x - 80 * s, box.yMax - 28 * s, 160 * s, 26 * s);
-                    UIKit.Fill(chip, UIKit.WithAlpha(UIKit.Rose400, 0.15f));
-                    UIKit.Label(chip, memory.date, 15 * s, UIKit.Rose500);
+                    // A little rubber stamp for the date.
+                    var chip = new Rect(box.center.x - 84 * s, box.yMax - 30 * s, 168 * s, 28 * s);
+                    UIKit.Rotated(-2f, chip, () =>
+                    {
+                        Look.RoundOutline(chip, UIKit.WithAlpha(UIKit.Rose500, 0.55f), 8 * s, 1.8f * s);
+                        UIKit.Label(chip, memory.date, 17 * s, UIKit.WithAlpha(UIKit.Rose500, 0.85f));
+                    });
                 }
-                if (!hasPhotos) UIKit.Label(new Rect(r.x, r.y + r.height * 0.68f, r.width, 90 * s), "♥", 80 * s, UIKit.WithAlpha(UIKit.Rose300, 0.5f));
-                var tape = new Rect(r.center.x - 38 * s, r.y - 6 * s, 76 * s, 24 * s);
-                UIKit.Rotated(-1.5f, tape, () => UIKit.Fill(tape, UIKit.WithAlpha(UIKit.Tape[idx % UIKit.Tape.Length], 0.65f)));
+                if (!hasPhotos) Look.HeartAt(new Vector2(r.center.x, r.y + r.height * 0.74f), 90 * s, UIKit.WithAlpha(UIKit.Rose300, 0.5f));
             }
             else
             {
-                UIKit.Label(new Rect(r.x, r.yMax - 34 * s, r.width, 26 * s), "♡", 20 * s, UIKit.Rose300);
+                Look.HeartAt(new Vector2(r.center.x, r.yMax - 24 * s), 18 * s, UIKit.WithAlpha(UIKit.Rose300, 0.7f));
             }
 
             var slots = PhotoSlots(idx, side, r);
@@ -215,9 +238,15 @@ namespace PokeMemories.Menu
                 UIKit.Rotated(tilt, slotCopy.rect, () =>
                 {
                     var f = slotCopy.rect;
-                    UIKit.Fill(new Rect(f.x + 3 * s, f.y + 5 * s, f.width, f.height), UIKit.WithAlpha(Color.black, 0.16f));
-                    UIKit.Fill(f, Color.white);
-                    DrawMedia(new Rect(f.x + 7 * s, f.y + 7 * s, f.width - 14 * s, f.height - 28 * s), slotCopy.item);
+                    Look.Shadow(f, 10 * s, 0.5f, new Vector2(3 * s, 8 * s));
+                    Look.Shadow(f, 2 * s, 0.22f, new Vector2(0, 1.5f * s));
+                    Look.Tex(f, Look.Paper, Color.white);
+                    UIKit.Fill(new Rect(f.x, f.y, f.width, 1), UIKit.WithAlpha(Color.white, 0.8f));
+                    var photo = new Rect(f.x + 7 * s, f.y + 7 * s, f.width - 14 * s, f.height - 28 * s);
+                    DrawMedia(photo, slotCopy.item);
+                    // The photo sits slightly inside the card: a thin inner shadow along its top and left.
+                    Look.FadeDown(new Rect(photo.x, photo.y, photo.width, 5 * s), UIKit.WithAlpha(Color.black, 0.28f));
+                    Look.FadeRight(new Rect(photo.x, photo.y, 4 * s, photo.height), UIKit.WithAlpha(Color.black, 0.18f));
                     UIKit.DrawTape(f, slotCopy.n + idx, s);
                 });
             }
@@ -225,57 +254,108 @@ namespace PokeMemories.Menu
 
         void DrawLocked(Rect r, int side, int slot)
         {
-            Paper(r, side, UIKit.Pink100);
-            UIKit.Label(new Rect(r.x, r.y + r.height * 0.14f, r.width, 34 * s), $"MEMORY {slot + 1} OF {N}", 14 * s, UIKit.Rose400);
-            UIKit.Label(new Rect(r.x, r.y + r.height * 0.24f, r.width, r.height * 0.28f), "?", 130 * s, UIKit.WithAlpha(UIKit.Rose300, 0.8f));
-            UIKit.Label(new Rect(r.x + 24 * s, r.y + r.height * 0.56f, r.width - 48 * s, 70 * s), "Keep skating to unlock", 30 * s, UIKit.Rose400);
-            UIKit.Label(new Rect(r.x + 24 * s, r.y + r.height * 0.68f, r.width - 48 * s, 60 * s), "This page is waiting for a memory ♡", 18 * s, UIKit.Rose300, TextAnchor.MiddleCenter, true, FontStyle.Normal);
+            Paper(r, side, BlushTint);
+            UIKit.Label(new Rect(r.x, r.y + r.height * 0.14f, r.width, 34 * s), $"memory {slot + 1} of {N}", 17 * s, UIKit.Rose400, TextAnchor.MiddleCenter, true, FontStyle.Normal);
+            // An empty, dashed photo frame waiting to be filled.
+            var frame = new Rect(r.center.x - 70 * s, r.y + r.height * 0.24f, 140 * s, 160 * s);
+            UIKit.Rotated(-3f, frame, () =>
+            {
+                Look.RoundOutline(frame, UIKit.WithAlpha(UIKit.Rose300, 0.7f), 6 * s, 2.5f * s);
+                Look.Round(frame, UIKit.WithAlpha(Color.white, 0.35f), 6 * s);
+                UIKit.Label(frame, "?", 100 * s, UIKit.WithAlpha(UIKit.Rose300, 0.85f), TextAnchor.MiddleCenter, true, FontStyle.Normal, Look.Title);
+                UIKit.DrawTape(frame, slot, s);
+            });
+            UIKit.Label(new Rect(r.x + 24 * s, r.y + r.height * 0.6f, r.width - 48 * s, 70 * s), "Keep skating to unlock", 32 * s, UIKit.Rose400, TextAnchor.MiddleCenter, true, FontStyle.Normal, Look.Title);
+            UIKit.Label(new Rect(r.x + 24 * s, r.y + r.height * 0.72f, r.width - 48 * s, 60 * s), "This page is waiting for a memory ♡", 20 * s, UIKit.Rose300, TextAnchor.MiddleCenter, true, FontStyle.Normal);
             DrawDoodles(r, slot);
         }
 
         void DrawEnd(Rect r, int side)
         {
-            Paper(r, side, UIKit.Paper);
-            UIKit.Label(new Rect(r.x, r.y + r.height * 0.25f, r.width, 60 * s), "The End", 48 * s, UIKit.Rose600);
-            UIKit.Label(new Rect(r.x, r.y + r.height * 0.25f + 60 * s, r.width, 40 * s), "for now ♡", 26 * s, UIKit.Rose400);
-            UIKit.Label(new Rect(r.x + 20 * s, r.y + r.height * 0.55f, r.width - 40 * s, 60 * s),
+            Paper(r, side, PaperTint);
+            UIKit.Label(new Rect(r.x, r.y + r.height * 0.22f, r.width, 80 * s), "The End", 58 * s, UIKit.Rose600, TextAnchor.MiddleCenter, false, FontStyle.Normal, Look.Title);
+            UIKit.Label(new Rect(r.x, r.y + r.height * 0.22f + 74 * s, r.width, 40 * s), "for now ♡", 28 * s, UIKit.Rose400, TextAnchor.MiddleCenter, false, FontStyle.Normal);
+            UIKit.Label(new Rect(r.x + 20 * s, r.y + r.height * 0.55f, r.width - 40 * s, 70 * s),
                 unlocked.Count >= N ? "Every memory is in the book." : $"{unlocked.Count} of {N} memories found.\nKeep skating to fill the rest.",
-                20 * s, UIKit.Rose500, TextAnchor.MiddleCenter, true, FontStyle.Normal);
+                22 * s, UIKit.Rose500, TextAnchor.MiddleCenter, true, FontStyle.Normal);
             DrawDoodles(r, 3);
+        }
+
+        /// <summary>Dashed stitching along `b`, like thread sewn through the cloth.</summary>
+        static void Stitch(Rect b, Color colour, float dash, float gap, float thickness)
+        {
+            for (var x = b.x; x < b.xMax; x += dash + gap)
+            {
+                var w = Mathf.Min(dash, b.xMax - x);
+                UIKit.Fill(new Rect(x, b.y, w, thickness), colour);
+                UIKit.Fill(new Rect(x, b.yMax - thickness, w, thickness), colour);
+            }
+            for (var y = b.y; y < b.yMax; y += dash + gap)
+            {
+                var h = Mathf.Min(dash, b.yMax - y);
+                UIKit.Fill(new Rect(b.x, y, thickness, h), colour);
+                UIKit.Fill(new Rect(b.xMax - thickness, y, thickness, h), colour);
+            }
         }
 
         void DrawCover(Rect r)
         {
-            UIKit.Fill(r, UIKit.Hex("#be123c"));
-            // Gold double border.
-            var gold = UIKit.WithAlpha(UIKit.Hex("#f5c26b"), 0.85f);
-            foreach (var inset in new[] { 16 * s, 24 * s })
-            {
-                var b = new Rect(r.x + inset, r.y + inset, r.width - 2 * inset, r.height - 2 * inset);
-                UIKit.Fill(new Rect(b.x, b.y, b.width, 2), gold);
-                UIKit.Fill(new Rect(b.x, b.yMax - 2, b.width, 2), gold);
-                UIKit.Fill(new Rect(b.x, b.y, 2, b.height), gold);
-                UIKit.Fill(new Rect(b.xMax - 2, b.y, 2, b.height), gold);
-            }
+            Look.Round(r, UIKit.Hex("#7a0f2c"), 9 * s);
+            GUI.BeginClip(r);
+            var inner = new Rect(0, 0, r.width, r.height);
+            Look.Tiled(inner, Look.Cloth, 128 * s, UIKit.Hex("#c0143f"));
+            // Soft light from the upper left, shade toward the lower right.
+            Look.Tex(new Rect(-r.width * 0.2f, -r.height * 0.3f, r.width * 1.3f, r.height * 1.1f), Look.Glow, UIKit.WithAlpha(UIKit.Hex("#ff9eb5"), 0.22f));
+            Look.FadeUp(new Rect(0, r.height * 0.55f, r.width, r.height * 0.45f), UIKit.WithAlpha(UIKit.Hex("#3a0516"), 0.35f));
+            // The spine band down the left: darker, with raised ridges.
+            var band = new Rect(0, 0, r.width * 0.085f, r.height);
+            Look.Tiled(band, Look.Cloth, 128 * s, UIKit.Hex("#8c0d2f"));
+            Look.FadeRight(new Rect(band.xMax, 0, 14 * s, r.height), UIKit.WithAlpha(Color.black, 0.35f));
+            UIKit.Fill(new Rect(band.xMax, 0, 1.5f * s, r.height), UIKit.WithAlpha(UIKit.Hex("#ff9eb5"), 0.3f));
+            foreach (var f in new[] { 0.14f, 0.2f, 0.8f, 0.86f })
+                UIKit.Fill(new Rect(0, r.height * f, band.width, 2.5f * s), UIKit.WithAlpha(Gold, 0.8f));
+            GUI.EndClip();
+
+            // Gold foil frame and cream stitching.
+            var gold = UIKit.WithAlpha(Gold, 0.95f);
+            var content = new Rect(r.x + r.width * 0.085f, r.y, r.width * 0.915f, r.height);
+            foreach (var inset in new[] { 18 * s, 26 * s })
+                Look.RoundOutline(new Rect(content.x + inset, r.y + inset, content.width - 2 * inset, r.height - 2 * inset), gold, 4 * s, inset < 20 * s ? 2.5f * s : 1.2f * s);
+            Stitch(new Rect(content.x + 36 * s, r.y + 36 * s, content.width - 72 * s, r.height - 72 * s), UIKit.WithAlpha(new Color(1f, 0.92f, 0.88f), 0.5f), 7 * s, 5 * s, 1.5f * s);
+            foreach (var corner in new[] { new Vector2(0, 0), new Vector2(1, 0), new Vector2(0, 1), new Vector2(1, 1) })
+                Look.HeartAt(new Vector2(Mathf.Lerp(content.x + 22 * s, content.xMax - 22 * s, corner.x), Mathf.Lerp(r.y + 22 * s, r.yMax - 22 * s, corner.y)), 11 * s, gold);
+
             ballTexture ??= MakeBallTexture();
             var size = Mathf.Min(r.width, r.height) * 0.32f;
+            var cx = content.center.x;
             // The cover pokeball hands over to the opening animation while it plays.
-            if (ballTime < 0) GUI.DrawTexture(new Rect(r.center.x - size / 2, r.y + r.height * 0.14f, size, size), ballTexture);
+            if (ballTime < 0)
+            {
+                var ball = new Rect(cx - size / 2, r.y + r.height * 0.13f, size, size);
+                Look.Tex(new Rect(ball.x - 12 * s, ball.y + 6 * s, ball.width + 24 * s, ball.height + 18 * s), Look.Glow, UIKit.WithAlpha(Color.black, 0.35f));
+                GUI.DrawTexture(ball, ballTexture);
+            }
             var cream = new Color(1f, 0.96f, 0.93f);
-            UIKit.Label(new Rect(r.x, r.y + r.height * 0.14f + size + 12 * s, r.width, 60 * s), "Our Memory Book", 40 * s, cream);
-            UIKit.Label(new Rect(r.x, r.y + r.height * 0.14f + size + 66 * s, r.width, 30 * s), "P O K E - M E M O R I E S", 15 * s, UIKit.WithAlpha(cream, 0.75f));
-            UIKit.Label(new Rect(r.x, r.y + r.height * 0.14f + size + 110 * s, r.width, 60 * s), "♥", 40 * s, gold);
-            UIKit.Label(new Rect(r.x, r.yMax - 70 * s, r.width, 36 * s), "Tap to open ♡", 20 * s, cream);
+            var titleY = r.y + r.height * 0.13f + size + 6 * s;
+            // Foil-stamped title: a dark pressed edge above, a bright catch-light below.
+            var tr = new Rect(content.x, titleY, content.width, 70 * s);
+            UIKit.Label(new Rect(tr.x - 1.2f * s, tr.y - 1.5f * s, tr.width, tr.height), "Our Memory Book", 42 * s, UIKit.WithAlpha(UIKit.Hex("#5a0a22"), 0.7f), TextAnchor.MiddleCenter, false, FontStyle.Normal, Look.Title);
+            UIKit.Label(new Rect(tr.x + 1.2f * s, tr.y + 1.5f * s, tr.width, tr.height), "Our Memory Book", 42 * s, UIKit.WithAlpha(UIKit.Hex("#fff0c8"), 0.55f), TextAnchor.MiddleCenter, false, FontStyle.Normal, Look.Title);
+            UIKit.Label(tr, "Our Memory Book", 42 * s, Gold, TextAnchor.MiddleCenter, false, FontStyle.Normal, Look.Title);
+            UIKit.Label(new Rect(content.x, titleY + 64 * s, content.width, 28 * s), "P O K E - M E M O R I E S", 16 * s, UIKit.WithAlpha(cream, 0.8f));
+            Look.HeartAt(new Vector2(cx, titleY + 122 * s), 34 * s, Gold);
+            var pulse = 0.65f + 0.35f * Mathf.Sin(Time.unscaledTime * 2.4f);
+            UIKit.Label(new Rect(content.x, r.yMax - 84 * s, content.width, 36 * s), "Tap to open ♡", 22 * s, UIKit.WithAlpha(cream, pulse));
         }
 
         void DrawDoodles(Rect r, int seed)
         {
-            string[] glyphs = { "♥", "★", "♡" };
             for (var i = 0; i < 3; i++)
             {
-                var x = r.x + r.width * (0.15f + 0.35f * ((seed + i * 2) % 3));
-                var y = r.y + r.height * (0.08f + 0.36f * ((seed + i) % 3)) + (i == 1 ? r.height * 0.45f : 0);
-                UIKit.Label(new Rect(x, y, 40 * s, 40 * s), glyphs[(seed + i) % 3], 26 * s, UIKit.WithAlpha(UIKit.Rose300, 0.35f));
+                var x = r.x + r.width * (0.2f + 0.3f * ((seed + i * 2) % 3));
+                var y = r.y + r.height * (0.1f + 0.34f * ((seed + i) % 3)) + (i == 1 ? r.height * 0.4f : 0);
+                if (i % 2 == 0) Look.HeartAt(new Vector2(x, y), (16 + i * 4) * s, UIKit.WithAlpha(UIKit.Rose300, 0.4f));
+                else Look.Tex(new Rect(x - 14 * s, y - 14 * s, 28 * s, 28 * s), Look.Sparkle, UIKit.WithAlpha(UIKit.Hex("#f5b942"), 0.6f));
             }
         }
 
@@ -288,8 +368,9 @@ namespace PokeMemories.Menu
                 UIKit.Fill(rect, UIKit.WithAlpha(UIKit.Rose300, 0.35f));
                 var size = Mathf.Min(rect.width, rect.height) * 0.34f;
                 var badge = new Rect(rect.center.x - size / 2, rect.center.y - size / 2, size, size);
-                UIKit.Fill(badge, UIKit.WithAlpha(Color.white, 0.9f));
-                UIKit.Label(badge, "▶", size * 0.55f, UIKit.Rose500);
+                Look.Tex(new Rect(badge.x - size * 0.2f, badge.y - size * 0.1f, size * 1.4f, size * 1.4f), Look.Glow, UIKit.WithAlpha(Color.black, 0.35f));
+                Look.Round(badge, UIKit.WithAlpha(Color.white, 0.92f), size / 2);
+                UIKit.Label(new Rect(badge.x + size * 0.05f, badge.y, badge.width, badge.height), "▶", size * 0.5f, UIKit.Rose500);
                 return;
             }
             var texture = Photo(item);
@@ -552,35 +633,86 @@ namespace PokeMemories.Menu
 
         // ───────────── Drawing ─────────────
 
+        void DrawDesk()
+        {
+            float W = Screen.width, H = Screen.height;
+            UIKit.Fill(new Rect(0, 0, W, H), UIKit.Hex("#2a1526"));
+            Look.Tiled(new Rect(0, 0, W, H), Look.Felt, 256 * s, UIKit.WithAlpha(UIKit.Hex("#6b3a5c"), 0.75f));
+            // A warm lamp from the upper left, and the room falling into darkness at the edges.
+            Look.Tex(new Rect(-W * 0.25f, -H * 0.75f, W * 1.1f, H * 1.9f), Look.Glow, UIKit.WithAlpha(UIKit.Hex("#ffc58a"), 0.30f));
+            Look.Tex(new Rect(-W * 0.15f, -H * 0.15f, W * 1.3f, H * 1.3f), Look.Vignette, UIKit.WithAlpha(UIKit.Hex("#ffd9b0"), 0.05f));
+            Look.FadeDown(new Rect(0, 0, W, H * 0.18f), UIKit.WithAlpha(Color.black, 0.35f));
+            Look.FadeUp(new Rect(0, H * 0.78f, W, H * 0.22f), UIKit.WithAlpha(Color.black, 0.5f));
+            Look.FadeRight(new Rect(0, 0, W * 0.12f, H), UIKit.WithAlpha(Color.black, 0.3f));
+            Look.FadeLeft(new Rect(W * 0.88f, 0, W * 0.12f, H), UIKit.WithAlpha(Color.black, 0.4f));
+            // Dust drifting through the lamplight.
+            for (var i = 0; i < 22; i++)
+            {
+                var seed = i * 12.9898f;
+                var x = Mathf.Repeat(Mathf.Sin(seed) * 43758.5f, 1f) * W + Mathf.Sin(Time.unscaledTime * 0.3f + seed) * 18 * s;
+                var y = Mathf.Repeat(Mathf.Sin(seed * 1.7f) * 24634.6f - Time.unscaledTime * (4 + i % 5), H);
+                var size = (3 + i % 4) * s;
+                Look.Tex(new Rect(x - size, y - size, size * 2, size * 2), Look.Glow, UIKit.WithAlpha(UIKit.Hex("#ffe2b8"), 0.35f * (0.4f + 0.6f * Mathf.Abs(Mathf.Sin(Time.unscaledTime + seed)))));
+            }
+        }
+
+        /// <summary>The cloth-covered boards and the block of page edges around `shown`.</summary>
+        void DrawBoards(Rect shown)
+        {
+            var board = new Rect(shown.x - 13 * s, shown.y - 13 * s, shown.width + 26 * s, shown.height + 26 * s);
+            Look.Shadow(board, 34 * s, 0.8f, new Vector2(8 * s, 22 * s));
+            Look.Shadow(board, 6 * s, 0.4f, new Vector2(2 * s, 5 * s));
+            Look.Round(board, UIKit.Hex("#6e0c29"), 9 * s);
+            GUI.BeginClip(board);
+            Look.Tiled(new Rect(0, 0, board.width, board.height), Look.Cloth, 128 * s, UIKit.Hex("#9d1037"));
+            Look.Tex(new Rect(-board.width * 0.2f, -board.height * 0.3f, board.width * 1.3f, board.height * 1.1f), Look.Glow, UIKit.WithAlpha(UIKit.Hex("#ff9eb5"), 0.18f));
+            GUI.EndClip();
+            Look.RoundOutline(board, UIKit.WithAlpha(UIKit.Hex("#ff9eb5"), 0.35f), 9 * s, 1.5f * s);
+            // Stacked page edges: a few cream layers, each a hair wider and lower than the last.
+            for (var k = 4; k >= 1; k--)
+            {
+                var layer = new Rect(shown.x - k * 1.8f * s, shown.y + k * 0.6f * s, shown.width + k * 3.6f * s, shown.height + k * 1.5f * s);
+                UIKit.Fill(layer, k % 2 == 0 ? UIKit.Hex("#e7dac6") : UIKit.Hex("#f4eadb"));
+                UIKit.Fill(new Rect(layer.x, layer.yMax - 1, layer.width, 1), UIKit.WithAlpha(UIKit.Hex("#7a5a45"), 0.35f));
+            }
+        }
+
         public void Draw()
         {
             if (Event.current.type != EventType.Repaint) return;
+            Look.Ensure();
             Layout();
-
-            // Dark plum desk, a vignette, then the book.
-            UIKit.Fill(new Rect(0, 0, Screen.width, Screen.height), UIKit.Hex("#2b1a29"));
-            UIKit.Fill(new Rect(0, 0, Screen.width, Screen.height * 0.5f), UIKit.WithAlpha(UIKit.Hex("#4a2a42"), 0.35f));
+            DrawDesk();
 
             var shown = CoverRect;
-            var board = new Rect(shown.x - 12 * s, shown.y - 12 * s, shown.width + 24 * s, shown.height + 24 * s);
-            UIKit.Fill(new Rect(board.x + 6 * s, board.y + 10 * s, board.width, board.height), UIKit.WithAlpha(Color.black, 0.35f));
-            UIKit.Fill(board, UIKit.Hex("#7f1237"));
-            // The stack of page edges peeking out below the pages.
-            UIKit.Fill(new Rect(shown.x - 4 * s, shown.y - 4 * s, shown.width + 8 * s, shown.height + 8 * s), UIKit.Hex("#e8dccb"));
-
-            if (Closed) DrawCover(shown);
-            else if (turnTime < 0 || ballTime >= 0) DrawSpread(index);
-            else DrawTurning();
-
-            if (spread && !Closed && (index > 0 && index < PageCount - 1 || turnTime >= 0))
-                UIKit.Fill(new Rect(book.center.x - 1 * s, book.y, 2 * s, book.height), UIKit.WithAlpha(Color.black, 0.18f));
+            if (Closed)
+            {
+                var board = new Rect(shown.x - 4 * s, shown.y - 4 * s, shown.width + 8 * s, shown.height + 8 * s);
+                Look.Shadow(board, 34 * s, 0.8f, new Vector2(8 * s, 22 * s));
+                Look.Shadow(board, 6 * s, 0.4f, new Vector2(2 * s, 5 * s));
+                // Page block peeking from under the cover.
+                for (var k = 3; k >= 1; k--)
+                    UIKit.Fill(new Rect(shown.x + 2 * s, shown.y + 4 * s + k * 1.6f * s, shown.width - 2 * s + k * 1.2f * s, shown.height), k % 2 == 0 ? UIKit.Hex("#e7dac6") : UIKit.Hex("#f4eadb"));
+                DrawCover(shown);
+            }
+            else
+            {
+                DrawBoards(shown);
+                if (turnTime < 0 || ballTime >= 0) DrawSpread(index);
+                else DrawTurning();
+                if (spread && (index > 0 && index < PageCount - 1 || turnTime >= 0))
+                {
+                    // The gutter: a deep crease with a thread of light on each side.
+                    UIKit.Fill(new Rect(book.center.x - 1.5f * s, book.y, 3 * s, book.height), UIKit.WithAlpha(UIKit.Hex("#2a0f14"), 0.45f));
+                }
+            }
 
             // Controls.
             UIKit.Button(BackButton, "◀ Menu", Color.white, UIKit.Rose500, 20 * s);
             if (index > 0) UIKit.Button(PrevButton, "◀", Color.white, UIKit.Rose500, 24 * s);
             if (index < PageCount - 1) UIKit.Button(NextButton, "▶", UIKit.Rose500, Color.white, 24 * s);
             var label = index == 0 ? "Tap the cover or swipe to open" : index <= N ? $"Memory {index} of {N}" : "";
-            UIKit.Label(new Rect(book.x + 110 * s, Screen.height - 64 * s, book.width - 220 * s, 48 * s), label, 20 * s, UIKit.Hex("#f5d7dc"));
+            UIKit.Label(new Rect(book.x + 110 * s, Screen.height - 64 * s, book.width - 220 * s, 48 * s), label, 21 * s, UIKit.Hex("#f5d7dc"), TextAnchor.MiddleCenter, true, FontStyle.Normal);
 
             if (ballTime >= 0) DrawPokeball(ballTime / BallSeconds);
             if (viewing != null) DrawViewer();
@@ -614,10 +746,9 @@ namespace PokeMemories.Menu
                 var firstHalf = t < 0.5f;
                 var width = Mathf.Max(0.001f, firstHalf ? 1 - 2 * t : 2 * t - 1);
                 int idx, side;
-                Rect page;
                 if (forward) { idx = firstHalf ? a : b; side = firstHalf ? 1 : 0; }
                 else { idx = firstHalf ? a : b; side = firstHalf ? 0 : 1; }
-                page = side == 0 ? leftPage : rightPage;
+                var page = side == 0 ? leftPage : rightPage;
                 Flip(width, spine, idx, side, page, t);
             }
             else
@@ -630,10 +761,28 @@ namespace PokeMemories.Menu
 
         void Flip(float widthScale, Vector2 pivot, int idx, int side, Rect page, float t)
         {
+            var lift = Mathf.Sin(t * Mathf.PI);
+            var edgeX = side == 0 ? pivot.x - page.width * widthScale : pivot.x + page.width * widthScale;
+            if (side == -1) edgeX = pivot.x + page.width * widthScale;
+
+            // Shadow the moving page throws onto the sheet underneath, strongest mid-turn.
+            var cast = (side == 0 ? 1 : -1) * page.width * 0.32f * lift;
+            var shadowRect = side == 0
+                ? new Rect(edgeX - Mathf.Abs(cast), page.y, Mathf.Abs(cast), page.height)
+                : new Rect(edgeX, page.y, Mathf.Abs(cast), page.height);
+            if (side == 0) Look.FadeLeft(shadowRect, UIKit.WithAlpha(Color.black, 0.38f * lift));
+            else Look.FadeRight(shadowRect, UIKit.WithAlpha(Color.black, 0.38f * lift));
+
             var matrix = GUI.matrix;
-            GUIUtility.ScaleAroundPivot(new Vector2(widthScale, 1), pivot);
+            // Lifting toward the viewer: the page grows a touch and tips slightly as it passes overhead.
+            GUIUtility.ScaleAroundPivot(new Vector2(widthScale, 1 + 0.035f * lift), pivot);
             DrawPage(idx, side, page);
-            UIKit.Fill(page, UIKit.WithAlpha(Color.black, 0.28f * Mathf.Sin(t * Mathf.PI)));
+            // Curvature: a bright sheen where the page faces the lamp, shading toward the fold.
+            var shade = widthScale < 0.5f ? 0.45f : 0.2f;
+            var inner = side == 0 ? page.xMax - page.width * 0.4f : page.x;
+            if (side == 0) Look.FadeLeft(new Rect(inner, page.y, page.width * 0.4f, page.height), UIKit.WithAlpha(Color.black, shade * lift));
+            else Look.FadeRight(new Rect(inner, page.y, page.width * 0.4f, page.height), UIKit.WithAlpha(Color.black, shade * lift));
+            UIKit.Fill(page, UIKit.WithAlpha(UIKit.Hex("#ffe9c8"), 0.10f * lift));
             GUI.matrix = matrix;
         }
 
@@ -641,24 +790,27 @@ namespace PokeMemories.Menu
         {
             UIKit.Fill(new Rect(0, 0, Screen.width, Screen.height), UIKit.WithAlpha(Color.black, 0.82f));
             var card = new Rect(Screen.width * 0.04f, Screen.height * 0.05f, Screen.width * 0.92f, Screen.height * 0.9f);
-            UIKit.Fill(card, Color.white);
-            var area = new Rect(card.x + 14 * s, card.y + 14 * s, card.width - 28 * s, card.height - 98 * s);
-            UIKit.Fill(area, UIKit.Paper);
+            Look.Shadow(card, 30 * s, 0.5f, new Vector2(0, 14 * s));
+            Look.Tex(card, Look.Paper, Color.white);
+            var area = new Rect(card.x + 16 * s, card.y + 16 * s, card.width - 32 * s, card.height - 100 * s);
+            UIKit.Fill(area, UIKit.Hex("#2a1526"));
 
             if (viewing.IsVideo)
             {
-                if (videoFailed) UIKit.Label(area, "This video can't play here.\nTap to go back.", 24 * s, UIKit.Rose400);
+                if (videoFailed) UIKit.Label(area, "This video can't play here.\nTap to go back.", 26 * s, UIKit.Rose300);
                 else if (video != null && video.isPlaying && video.texture != null) GUI.DrawTexture(area, video.texture, ScaleMode.ScaleToFit);
-                else UIKit.Label(area, "Loading video…", 24 * s, UIKit.Rose300);
+                else UIKit.Label(area, "Loading video…", 26 * s, UIKit.Rose300);
             }
             else
             {
                 var texture = Photo(viewing);
                 if (texture != null) GUI.DrawTexture(area, texture, ScaleMode.ScaleToFit);
-                else UIKit.Label(area, failed.Contains(viewing.url) ? "Couldn't load this photo" : "Loading…", 24 * s, UIKit.Rose300);
+                else UIKit.Label(area, failed.Contains(viewing.url) ? "Couldn't load this photo" : "Loading…", 26 * s, UIKit.Rose300);
             }
-            UIKit.Label(new Rect(card.x, card.yMax - 66 * s, card.width, 56 * s), viewingMemory != null ? viewingMemory.caption : "", 32 * s, UIKit.Rose600);
-            UIKit.Label(new Rect(card.xMax - 60 * s, card.y + 8 * s, 52 * s, 52 * s), "✕", 28 * s, UIKit.Rose400);
+            UIKit.Label(new Rect(card.x, card.yMax - 76 * s, card.width, 64 * s), viewingMemory != null ? viewingMemory.caption : "", 36 * s, UIKit.Rose600, TextAnchor.MiddleCenter, true, FontStyle.Normal, Look.Title);
+            var close = new Rect(card.xMax - 62 * s, card.y + 12 * s, 48 * s, 48 * s);
+            Look.Round(close, UIKit.WithAlpha(Color.black, 0.45f), 24 * s);
+            UIKit.Label(close, "✕", 26 * s, Color.white);
         }
 
         // ───────────── Pokeball opening animation ─────────────
@@ -695,6 +847,13 @@ namespace PokeMemories.Menu
                     var colour = dy > 0 ? red : white;
                     if (d > 59 || Mathf.Abs(dy) < 4 || (d < 16 && d > 11)) colour = ink;
                     else if (d <= 11) colour = d < 6 ? red : white;
+                    // Shaded like a glossy sphere lit from the upper left, with a soft specular spot.
+                    var lit = 1f - 0.34f * Mathf.Clamp01((dx * 0.6f - dy * 0.8f + 60f) / 120f);
+                    var hx = dx + 22f; var hy = dy - 30f;
+                    var spec = Mathf.Pow(Mathf.Clamp01(1f - Mathf.Sqrt(hx * hx + hy * hy * 1.6f) / 22f), 2f) * 0.75f;
+                    var shaded = new Color(colour.r / 255f * lit, colour.g / 255f * lit, colour.b / 255f * lit);
+                    shaded = Color.Lerp(shaded, Color.white, spec);
+                    colour = (Color32)shaded;
                     colour.a = (byte)(Mathf.Clamp01(62.5f - d) * 255);
                     pixels[y * n + x] = colour;
                 }

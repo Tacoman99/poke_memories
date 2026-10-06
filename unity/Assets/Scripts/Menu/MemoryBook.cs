@@ -741,13 +741,15 @@ namespace PokeMemories.Menu
                 // The resting pages under the sheet, then the sheet itself as a curled strip.
                 DrawPage(forward ? a : b, 0, leftPage);
                 DrawPage(forward ? b : a, 1, rightPage);
-                DrawCurl(Mathf.Min(a, b), Mathf.Max(a, b), forward, t);
+                DrawCurl(rightPage, leftPage, SpineX, r => DrawPage(Mathf.Min(a, b), 1, r), r => DrawPage(Mathf.Max(a, b), 0, r), forward, t);
             }
             else
             {
                 DrawPage(forward ? b : a, -1, singlePage);
-                var width = Mathf.Max(0.001f, forward ? 1 - t : t);
-                Flip(width, new Vector2(book.x, book.center.y), forward ? a : b, -1, singlePage, t);
+                // One page at a time: the sheet peels leftwards over the spine; its back is blank paper.
+                var back = singlePage; // the blank back is sampled from an on-screen copy
+                DrawCurl(singlePage, back, singlePage.x, r => DrawPage(forward ? a : b, -1, r),
+                    r => { Look.Tex(r, Look.Paper, PaperTint); Look.FadeLeft(new Rect(r.xMax - 60 * s, r.y, 60 * s, r.height), UIKit.WithAlpha(UIKit.Hex("#4a2020"), 0.35f)); }, forward, t);
             }
         }
 
@@ -770,25 +772,24 @@ namespace PokeMemories.Menu
             return rt;
         }
 
-        void RenderPage(RenderTexture rt, int idx, int side, Rect page)
+        void RenderPage(RenderTexture rt, System.Action<Rect> draw, Rect page)
         {
             var previous = RenderTexture.active;
             RenderTexture.active = rt;
             GL.Clear(true, true, new Color(0, 0, 0, 0));
-            DrawPage(idx, side, page);
+            draw(page);
             RenderTexture.active = previous;
         }
 
-        void DrawCurl(int lo, int hi, bool forward, float t)
+        void DrawCurl(Rect fr, Rect bk, float spineX, System.Action<Rect> drawFront, System.Action<Rect> drawBack, bool forward, float t)
         {
             var front = PageTexture(ref frontRT);
             var back = PageTexture(ref backRT);
-            RenderPage(front, lo, 1, rightPage);
-            RenderPage(back, hi, 0, leftPage);
+            RenderPage(front, drawFront, fr);
+            RenderPage(back, drawBack, bk);
 
             float W = Screen.width, H = Screen.height;
-            var pw = rightPage.width;
-            var spineX = SpineX;
+            var pw = fr.width;
             var cy = book.center.y;
             var dir = forward ? t : 1 - t;                 // 0 = sheet flat on the right, 1 = flat on the left
             var theta = dir * Mathf.PI;
@@ -827,14 +828,14 @@ namespace PokeMemories.Menu
             if (sMax > sMin)
             {
                 var k = Mathf.SmoothStep(0, 1, peak / (0.35f * pw));
-                var h = rightPage.height * 0.985f;
+                var h = fr.height * 0.985f;
                 var band = new Rect(sMin, cy - h / 2 + 8 * s, sMax - sMin, h);
                 UIKit.Fill(band, UIKit.WithAlpha(Color.black, 0.2f * k));
                 var soft = 46 * s;
                 Look.FadeRight(new Rect(sMax, band.y, soft, band.height), UIKit.WithAlpha(Color.black, 0.2f * k));
                 Look.FadeLeft(new Rect(sMin - soft, band.y, soft, band.height), UIKit.WithAlpha(Color.black, 0.2f * k));
             }
-            float page_h(float zz) => rightPage.height * (1 + persp * zz);
+            float page_h(float zz) => fr.height * (1 + persp * zz);
 
             var old = GUI.color;
             for (var i = 0; i < CurlStrips; i++)
@@ -845,8 +846,8 @@ namespace PokeMemories.Menu
                 var u0 = i * du;
                 var u1 = (i + 1) * du;
                 float s0, s1;
-                if (isFront) { s0 = rightPage.x + u0; s1 = rightPage.x + u1; }
-                else { s0 = leftPage.xMax - u0; s1 = leftPage.xMax - u1; }
+                if (isFront) { s0 = fr.x + u0; s1 = fr.x + u1; }
+                else { s0 = bk.xMax - u0; s1 = bk.xMax - u1; }
                 float sx0 = spineX + xs[i], sx1 = spineX + xs[i + 1];
                 if (sx1 < sx0) { (sx0, sx1) = (sx1, sx0); (s0, s1) = (s1, s0); }
                 var zmid = (zs[i] + zs[i + 1]) * 0.5f;
@@ -857,7 +858,7 @@ namespace PokeMemories.Menu
                 var shade = Mathf.Lerp(0.86f, 1f, diffuse);
                 var rect = new Rect(sx0 - 0.5f, cy - h / 2, sx1 - sx0 + 1f, h);
                 GUI.color = new Color(shade, shade, shade, 1);
-                GUI.DrawTextureWithTexCoords(rect, tex, UvFor(s0, s1, W, H, h));
+                GUI.DrawTextureWithTexCoords(rect, tex, UvFor(fr, s0, s1, W, H));
             }
             GUI.color = old;
 
@@ -867,12 +868,12 @@ namespace PokeMemories.Menu
             UIKit.Fill(new Rect(edgeX - 1, cy - eh / 2, 2, eh), UIKit.WithAlpha(Color.white, 0.25f * Mathf.Sin(theta)));
         }
 
-        Rect UvFor(float s0, float s1, float W, float H, float drawnHeight)
+        Rect UvFor(Rect fr, float s0, float s1, float W, float H)
         {
             // The page occupies the same vertical band in the texture as on screen; stretching the
             // strip taller or shorter then gives the perspective for free.
-            var top = rightPage.y;
-            var bottom = rightPage.yMax;
+            var top = fr.y;
+            var bottom = fr.yMax;
             return new Rect(s0 / W, 1 - bottom / H, (s1 - s0) / W, (bottom - top) / H);
         }
 

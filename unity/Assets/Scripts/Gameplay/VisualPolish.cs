@@ -18,14 +18,36 @@ namespace PokeMemories.Gameplay
         TrailRenderer trail;
         Gradient trailGradient;
         VolumeProfile profile;
+        float groundY;
+        Camera view;
+        Transform skaterTransform;
+        SpriteRenderer contactShadow, groundSheen;
         Bloom bloom;
         Vignette vignette;
         ChromaticAberration aberration;
 
-        public void Bind(CourseSimulation simulation, Camera camera, Material spriteMaterial, Transform skater)
+        public void Bind(CourseSimulation simulation, Camera camera, Material spriteMaterial, Transform skater, float groundLine)
         {
             sim = simulation;
+            groundY = groundLine;
+            view = camera;
             if (globalLight != null) return; // restart: everything already exists
+
+            skaterTransform = skater;
+            // A soft contact shadow that stays on the pavement and thins out as she jumps.
+            contactShadow = new GameObject("Contact Shadow").AddComponent<SpriteRenderer>();
+            contactShadow.transform.SetParent(transform, false);
+            contactShadow.sprite = Look.GlowSprite;
+            contactShadow.sharedMaterial = spriteMaterial;
+            contactShadow.color = new Color(0.25f, 0.02f, 0.12f, 0.5f);
+            contactShadow.sortingOrder = 8;
+            // A warm sheen on the pavement that follows the camera, as if the sunset is reflecting off it.
+            groundSheen = new GameObject("Ground Sheen").AddComponent<SpriteRenderer>();
+            groundSheen.transform.SetParent(transform, false);
+            groundSheen.sprite = Look.GlowSprite;
+            groundSheen.sharedMaterial = spriteMaterial;
+            groundSheen.color = new Color(1f, 0.85f, 0.7f, 0.28f);
+            groundSheen.sortingOrder = 1;
 
             var cameraData = camera.GetUniversalAdditionalCameraData();
             cameraData.renderPostProcessing = true;
@@ -99,6 +121,15 @@ namespace PokeMemories.Gameplay
         public void Tick(bool started)
         {
             if (sim == null || trail == null) return;
+            var skaterPos = skaterTransform.position;
+            var height = Mathf.Max(0, skaterPos.y - groundY);
+            contactShadow.transform.position = new Vector3(skaterPos.x - 0.05f, groundY + 0.02f, 0);
+            contactShadow.transform.localScale = new Vector3(1.5f / (1 + height * 0.35f), 0.2f / (1 + height * 0.25f), 1);
+            var shadowColour = contactShadow.color;
+            shadowColour.a = 0.75f / (1 + height * 0.7f);
+            contactShadow.color = shadowColour;
+            groundSheen.transform.position = new Vector3(view.transform.position.x, groundY - 0.08f, 0);
+            groundSheen.transform.localScale = new Vector3(16f, 0.5f, 1);
             var fast = Mathf.InverseLerp(1.08f, CourseSimulation.MaxPace, sim.Pace);
             var intensity = Mathf.Clamp01(Mathf.Max(fast, sim.BoostPulse, sim.Rail != null ? 0.6f : 0));
             trail.emitting = started && !sim.Ended && intensity > 0.05f;
@@ -163,5 +194,31 @@ namespace PokeMemories.Gameplay
         {
             if (profile != null) Destroy(profile);
         }
+    }
+
+    /// <summary>Visual-only life for a pokeball pickup: a pulsing halo and a gentle bob. Collision stays in the simulation.</summary>
+    public class BallFx : MonoBehaviour
+    {
+        public Transform ball, halo;
+        Vector3 ballRest, haloRest, haloBase;
+        float phase;
+
+        public void Init(Transform ballPart, Transform haloPart)
+        {
+            ball = ballPart; halo = haloPart;
+            ballRest = ball.position; haloRest = halo.position; haloBase = halo.localScale;
+            phase = Mathf.Repeat(ballRest.x * 1.7f, 6.28f);
+        }
+
+        void Update()
+        {
+            var bob = Mathf.Sin(Time.time * 3f + phase) * 0.05f;
+            ball.position = ballRest + Vector3.up * bob;
+            halo.position = haloRest + Vector3.up * bob;
+            var pulse = 1f + 0.12f * Mathf.Sin(Time.time * 4f + phase);
+            halo.localScale = new Vector3(haloBase.x * pulse, haloBase.y * pulse, 1);
+        }
+
+        public float baseScale = 1;
     }
 }

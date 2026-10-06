@@ -115,7 +115,7 @@ namespace PokeMemories.Gameplay
             recorded = false;
             lastReward = null;
             feel.Bind(sim, view, groundY, skaterSprite.sharedMaterial);
-            polish.Bind(sim, view, skaterSprite.sharedMaterial, skater.transform);
+            polish.Bind(sim, view, skaterSprite.sharedMaterial, skater.transform, groundY);
             skater.transform.rotation = Quaternion.identity;
             skater.transform.localScale = Vector3.one;
         }
@@ -418,8 +418,16 @@ namespace PokeMemories.Gameplay
             switch (item.Kind)
             {
                 case ItemKind.Ball:
-                    Part(art.ball, SimToWorld(item.X + item.Width / 2, item.Y), width, width);
+                {
+                    var centre = SimToWorld(item.X + item.Width / 2, item.Y);
+                    var halo = Part(Look.GlowSprite, centre, width * 3.4f, width * 3.4f, 0, 4);
+                    halo.color = new Color(1f, 0.92f, 0.62f, 1f);
+                    var ball = Part(art.ball, centre, width, width);
+                    var fx = go.AddComponent<BallFx>();
+                    fx.baseScale = halo.transform.localScale.x;
+                    fx.Init(ball.transform, halo.transform);
                     break;
+                }
                 case ItemKind.Cone:
                     Part(art.cone, Resting(width, height), width, height);
                     break;

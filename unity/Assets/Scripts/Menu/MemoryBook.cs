@@ -437,7 +437,7 @@ namespace PokeMemories.Menu
                 if (!slot.rect.Contains(tap)) continue;
                 viewing = slot.item;
                 viewingMemory = unlocked[index - 1];
-                if (viewing.IsVideo) StartVideo(viewing.url);
+                if (viewing.IsVideo) StartVideo(MediaUrl(viewing.url));
                 return;
             }
             if (index == 0 && CoverRect.Contains(tap)) { Next(); return; }
@@ -509,9 +509,29 @@ namespace PokeMemories.Menu
             }
         }
 
+        const string MediaHost = "https://f004.backblazeb2.com/file/pokemon-memories/";
+
+        /// <summary>
+        /// The browser blocks cross-origin photo and video reads (the bucket sends no CORS headers),
+        /// so the WebGL build fetches media through the same-origin /media/ rewrite in vercel.json.
+        /// </summary>
+        static string MediaUrl(string url)
+        {
+#if UNITY_WEBGL && !UNITY_EDITOR
+            if (url.StartsWith(MediaHost))
+            {
+                var page = Application.absoluteURL;
+                var slash = page.IndexOf('/', page.IndexOf("://") + 3);
+                var origin = slash < 0 ? page : page.Substring(0, slash);
+                return origin + "/media/" + url.Substring(MediaHost.Length);
+            }
+#endif
+            return url;
+        }
+
         IEnumerator Fetch(MediaItem item)
         {
-            using (var request = UnityWebRequest.Get(item.url))
+            using (var request = UnityWebRequest.Get(MediaUrl(item.url)))
             {
                 yield return request.SendWebRequest();
                 Texture2D texture = null;
